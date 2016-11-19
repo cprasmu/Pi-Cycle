@@ -1,0 +1,2684 @@
+<html><head><title>PiCycle Virtual Journeys</title>
+<link rel="shortcut icon" href="favicon.ico">
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" >
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" >
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+<script src="https://code.highcharts.com/stock/highstock.js"></script>
+<script src="https://code.highcharts.com/stock/highcharts-more.js"></script>
+<script src="https://code.highcharts.com/modules/solid-gauge.js"></script>
+<!--script src="https://code.highcharts.com/stock/modules/exporting.js"></script-->
+<meta name="viewport" content="initial-scale=1.0, user-scalable=yes" />
+<script type="text/javascript" src="http://maps.google.com/maps/api/js?key=AIzaSyDVyQlW4jGu8DKHMBRzKdXS1xSyhlk2jr4&signed_in=true&libraries=places"></script>
+<!--script type="text/javascript" src="http://maps.google.com/maps/api/js?signed_in=true&libraries=places"></script-->
+<!--script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDVyQlW4jGu8DKHMBRzKdXS1xSyhlk2jr4&signed_in=true&libraries=places&callback=initAutocomplete" async defer></script-->
+<!--script src="javascript/bootstrap.min.js"></script-->
+<!--script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false&libraries=geometry"></script-->
+<script src="javascript/jquery.bootgrid.min.js"></script>
+<script src="javascript/date.format.js"></script>
+<script src="javascript/filesize.min.js"></script>
+<link href="css/jquery.bootgrid.css" rel="stylesheet">
+
+<style type="text/css">
+    .bgColumnModified
+    {
+        width: 160px;
+    }
+    
+    .bgColumnSize
+    {
+        width: 100px;
+    }
+    
+    .bgColumnCommands
+    {
+        width: 100px;
+    }
+    
+</style>
+<script type="text/javascript">
+
+	var dmap = null;
+	var map	= null;
+	var pan = null;
+	
+	var placeSearch, autocompleteFrom, autocompleteTo, autocompleteVia;
+	
+	var componentForm = {
+	        street_number	: 'short_name',
+	        route			: 'long_name',
+	        locality		: 'long_name',
+	        administrative_area_level_1: 'short_name',
+	        country			: 'long_name',
+	        postal_code		: 'short_name'
+	 };
+	
+	 function initAutocomplete() {
+	        // Create the autocomplete object, restricting the search to geographical location types.
+	        autocompleteFrom 	= new google.maps.places.Autocomplete((document.getElementById('fromText')),  	{types: ['geocode']});
+	        autocompleteTo 		= new google.maps.places.Autocomplete((document.getElementById('toText')),  	{types: ['geocode']});
+	        autocompleteVia 	= new google.maps.places.Autocomplete((document.getElementById('viaText')),  	{types: ['geocode']});
+	        // When the user selects an address from the dropdown, populate the address fields in the form.
+	        //autocomplete.addListener('place_changed', fillInAddress);
+	        //autocomplete.addListener('place_changed', fillInAddress);
+	}
+	 /*
+	 function fillInAddress() {
+	        // Get the place details from the autocomplete object.
+	        var place = autocomplete.getPlace();
+
+	        for (var component in componentForm) {
+	    		//document.getElementById(component).value = '';
+	   			//document.getElementById(component).disabled = false;
+	        }
+
+	        // Get each component of the address from the place details
+	        // and fill the corresponding field on the form.
+	        for (var i = 0; i < place.address_components.length; i++) {
+	          var addressType = place.address_components[i].types[0];
+	          if (componentForm[addressType]) {
+	            var val = place.address_components[i][componentForm[addressType]];
+	            document.getElementById(addressType).value = val;
+	          }
+	        }
+	}
+	 */
+	 function geolocate() {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function(position) {
+            var geolocation = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            };
+            var circle = new google.maps.Circle({
+              center: geolocation,
+              radius: position.coords.accuracy
+            });
+            autocompleteTo.setBounds(circle.getBounds());
+            autocompleteFrom.setBounds(circle.getBounds());
+          });
+        }
+	}
+	
+	function DMap() { 
+		this.streeViewZoom  = 1;
+		this.accelerationX	= 0;
+		this.accelerationY	= 0;
+		this.accelerationZ	= 0;
+		this.rotationAlpha	= 0;
+		this.rotationBeta	= 0;
+		this.rotationGamma	= 0;
+		this.AxisAx			= 0;
+		this.AxisAy			= 0;
+		this.startLoc 		= "";
+ 		this.endLoc 		= "";
+ 		this.viaLoc 		= "";
+ 		this.mapType 		= 0;
+		this.travelMode 	= 0;
+ 		this.avoidHighways 	= 0;
+ 		this.avoidTolls 	= 0;
+ 		this.region 		= "";
+ 		this.aL 			= 0;
+ 		this.ai 			= 2;// mode or initial mode?
+ 		this.draggableRoute = false;//draggable route?
+ 		this.animationDelay = 2000;
+ 		//this.bq 			= 20;//not used now was step distance
+ 		this.mapZoom 		= 15;
+ 		this.directionsRenderer = null;
+ 		this.dirSvc 		= new google.maps.DirectionsService();
+ 		//this.cn 			= [];//not found
+ 		this.cd 			= null; // used once - directions
+ 		//this.cP 			= null;//not found
+ 	    //this.dp 			= null;//not found
+ 		this.startPanel 	= null;
+ 		this.mapPanel 		= null;
+ 		this.streetViewPanel= null;
+ 		this.headerPanel 	= null;
+ 		this.metaPanel		= null;
+ 		this.directionsPanel= null;
+ 		this.waitPanel 		= null;
+ 		this.l 				= null;//location
+ 		this.marker 			= null;
+ 		this.mode 			= -1;
+ 		this.aI 			= 0;//index of leg position?
+ 		this.ae 			= 0;
+ 		this.routeLegs 				= [];//legs
+ 		this.ax;				//point
+ 		this.isRunning 		= false;
+ 		this.bk 			= false;//isAnimating
+ 		this.width 			= 0;
+ 		this.height 		= 0;
+ 		this.elePan 		= null;
+ 		this.elevationData 	= [];
+ 		this.inclineData 	= [];
+ 		this.chart			= null;
+ 		this.pitch 			= 0;
+ 		this.currentDirections = null;
+ 		this.journeyName	= null;
+ 		
+ 		
+ 	    // Load the fonts
+ 		Highcharts.createElement('link', {
+ 		   href: '//fonts.googleapis.com/css?family=Unica+One',
+ 		   rel: 'stylesheet',
+ 		   type: 'text/css'
+ 		}, null, document.getElementsByTagName('head')[0]);
+
+ 		Highcharts.theme = {
+ 		   colors: ["#2b908f", "#90ee7e", "#f45b5b", "#7798BF", "#aaeeee", "#ff0066", "#eeaaee", "#55BF3B", "#DF5353", "#7798BF", "#aaeeee"],
+ 		   chart: {
+ 		      backgroundColor: {
+ 		         linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
+ 		         stops: [
+ 		            [0, '#2a2a2b'],
+ 		            [1, '#3e3e40']
+ 		         ]
+ 		      },
+ 		      style: {
+ 		         fontFamily: "'Unica One', sans-serif"
+ 		      },
+ 		      plotBorderColor: '#606063'
+ 		   },
+ 		   title: {
+ 		      style: {
+ 		         color: '#E0E0E3',
+ 		         textTransform: 'uppercase',
+ 		         fontSize: '20px'
+ 		      }
+ 		   },
+ 		   subtitle: {
+ 		      style: {
+ 		         color: '#E0E0E3',
+ 		         textTransform: 'uppercase'
+ 		      }
+ 		   },
+ 		   xAxis: {
+ 		      gridLineColor: '#707073',
+ 		      labels: {
+ 		         style: {
+ 		            color: '#E0E0E3'
+ 		         }
+ 		      },
+ 		      lineColor: '#707073',
+ 		      minorGridLineColor: '#505053',
+ 		      tickColor: '#707073',
+ 		      title: {
+ 		         style: {
+ 		            color: '#A0A0A3'
+
+ 		         }
+ 		      }
+ 		   },
+ 		   yAxis: {
+ 		      gridLineColor: '#707073',
+ 		      labels: {
+ 		         style: {
+ 		            color: '#E0E0E3'
+ 		         }
+ 		      },
+ 		      lineColor: '#707073',
+ 		      minorGridLineColor: '#505053',
+ 		      tickColor: '#707073',
+ 		      tickWidth: 1,
+ 		      title: {
+ 		         style: {
+ 		            color: '#A0A0A3'
+ 		         }
+ 		      }
+ 		   },
+ 		   tooltip: {
+ 		      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+ 		      style: {
+ 		         color: '#F0F0F0'
+ 		      }
+ 		   },
+ 		   plotOptions: {
+ 		      series: {
+ 		         dataLabels: {
+ 		            color: '#B0B0B3'
+ 		         },
+ 		         marker: {
+ 		            lineColor: '#333'
+ 		         }
+ 		      },
+ 		      boxplot: {
+ 		         fillColor: '#505053'
+ 		      },
+ 		      candlestick: {
+ 		         lineColor: 'white'
+ 		      },
+ 		      errorbar: {
+ 		         color: 'white'
+ 		      }
+ 		   },
+ 		   legend: {
+ 		      itemStyle: {
+ 		         color: '#E0E0E3'
+ 		      },
+ 		      itemHoverStyle: {
+ 		         color: '#FFF'
+ 		      },
+ 		      itemHiddenStyle: {
+ 		         color: '#606063'
+ 		      }
+ 		   },
+ 		   credits: {
+ 		      style: {
+ 		         color: '#666'
+ 		      }
+ 		   },
+ 		   labels: {
+ 		      style: {
+ 		         color: '#707073'
+ 		      }
+ 		   },
+
+ 		   drilldown: {
+ 		      activeAxisLabelStyle: {
+ 		         color: '#F0F0F3'
+ 		      },
+ 		      activeDataLabelStyle: {
+ 		         color: '#F0F0F3'
+ 		      }
+ 		   },
+
+ 		   navigation: {
+ 		      buttonOptions: {
+ 		         symbolStroke: '#DDDDDD',
+ 		         theme: {
+ 		            fill: '#505053'
+ 		         }
+ 		      }
+ 		   },
+
+ 		   // scroll charts
+ 		   rangeSelector: {
+ 		      buttonTheme: {
+ 		         fill: '#505053',
+ 		         stroke: '#000000',
+ 		         style: {
+ 		            color: '#CCC'
+ 		         },
+ 		         states: {
+ 		            hover: {
+ 		               fill: '#707073',
+ 		               stroke: '#000000',
+ 		               style: {
+ 		                  color: 'white'
+ 		               }
+ 		            },
+ 		            select: {
+ 		               fill: '#000003',
+ 		               stroke: '#000000',
+ 		               style: {
+ 		                  color: 'white'
+ 		               }
+ 		            }
+ 		         }
+ 		      },
+ 		      inputBoxBorderColor: '#505053',
+ 		      inputStyle: {
+ 		         backgroundColor: '#333',
+ 		         color: 'silver'
+ 		      },
+ 		      labelStyle: {
+ 		         color: 'silver'
+ 		      }
+ 		   },
+
+ 		   navigator: {
+ 		      handles: {
+ 		         backgroundColor: '#666',
+ 		         borderColor: '#AAA'
+ 		      },
+ 		      outlineColor: '#CCC',
+ 		      maskFill: 'rgba(255,255,255,0.1)',
+ 		      series: {
+ 		         color: '#7798BF',
+ 		         lineColor: '#A6C7ED'
+ 		      },
+ 		      xAxis: {
+ 		         gridLineColor: '#505053'
+ 		      }
+ 		   },
+
+ 		   scrollbar: {
+ 		      barBackgroundColor: '#808083',
+ 		      barBorderColor: '#808083',
+ 		      buttonArrowColor: '#CCC',
+ 		      buttonBackgroundColor: '#606063',
+ 		      buttonBorderColor: '#606063',
+ 		      rifleColor: '#FFF',
+ 		      trackBackgroundColor: '#404043',
+ 		      trackBorderColor: '#404043'
+ 		   },
+
+ 		   // special colors for some of the
+ 		   legendBackgroundColor: 'rgba(0, 0, 0, 0.5)',
+ 		   background2: '#505053',
+ 		   dataLabelsColor: '#B0B0B3',
+ 		   textColor: '#C0C0C0',
+ 		   contrastTextColor: '#F0F0F3',
+ 		   maskColor: 'rgba(255,255,255,0.3)'
+ 		};
+
+ 		// Apply the theme
+ 	//	Highcharts.setOptions(Highcharts.theme);
+ 		
+ 		
+ 		this.chartOptions = {chart:{animation:false,   defaultSeriesType:"area",  ignoreHiddenSeries:false,  backgroundColor:"#262528", margin:[30,0,30,0], spacingTop:3, spacingRight:0, events:{}  },  
+     //	series:[{name:"Target", type:["area"], data:{}, dataGrouping:{smoothed:false}},
+     //			{name:"Actual", color:"#00FF00", type:["line"], data:{}}, 
+     //			{name:"Heart Rate",color:"#ff0000", type:["line"], data:{}}, 
+    // 			{name:"Cadence",color:"#ffffff",type:["line"],data:{}}, 
+     //			{name:"Power",color:"#ffff4d",type:["line"],data:{},shadow:true}
+    // 	],
+     	loading:{labelStyle:{color:"white"},style:{backgroundColor:"#262528"} },
+     	navigator:{adaptToUpdatedData:true,margin:20,enabled:true,
+     		  		xAxis:{labels:{enabled:false},
+     		  				lineWidth:0,
+     		  				gridLineWidth:0,
+     		  				minorGridLineWidth:0,
+     		  				lineColor:"transparent",
+     		  				minorTickLength:0,
+     		  				tickLength:0},
+     		  		yAxis:{	labels:{enabled:false},
+     		  				lineWidth:0,
+     		  				gridLineWidth:0,
+     		  				minorGridLineWidth:0,
+     		  				lineColor:"transparent",
+     		  				minorTickLength:0,
+     		  				tickLength:0
+     		  				},
+     		  		series:{type:"area",
+     		  				color:"#4572A7",
+     		  				fillOpacity:1,
+     		  				dataGrouping:{	smoothed:false,
+     		  								approximation:null,
+     		  								enabled:false
+     		  				},
+     		  				lineWidth:1,
+     		  				marker:{enabled:false},
+     		  				shadow:false,
+     		  				xAxis:{
+     		  					type:"datetime",
+     		  					startOnTick:true,
+     		  					tickLength:0,
+     		  					ordinal:false,
+     		  					labels:{enabled:false}
+     		  				}
+     		  		}
+     		  		},
+     		credits:{enabled:false},
+     		title:{text:""},
+     		scrollbar:{liveRedraw:false},
+     		xAxis:{	type:"datetime",
+     				startOnTick:false,
+     				endOnTick:false,
+     				tickLength:10,
+     				ordinal:false,
+     				tickColor:"#bfbfbf",
+     				dateTimeLabelFormats:{	second:"%H:%M:%S",minute:"%H:%M",hour:"%H:%M",day:"%H:%M",week:"%H:%M",month:"%H:%M",year:"%H:%M"},
+     				labels:{y:25}
+      			},
+     		yAxis:[{	endOnTick:false,
+     				plotLines:[{color:"#929293",width:2}],
+     				title:{text:""},
+     				gridLineColor:"#4D4D4D",
+     				labels:{style:{fontWeight:"bold",fontSize:"11px",color:"#999999"}}
+     				},{	endOnTick:false,
+         				plotLines:[{color:"#929293",width:2}],
+         				title:{text:""},
+         				gridLineColor:"#4D4D4D",
+         				labels:{style:{fontWeight:"bold",fontSize:"11px",color:"#999999"}}
+         				},{	endOnTick:false,
+             				plotLines:[{color:"#929293",width:2}],
+             				title:{text:""},
+             				gridLineColor:"#4D4D4D",
+             				labels:{style:{fontWeight:"bold",fontSize:"11px",color:"#999999"}}
+             				},{	endOnTick:false,
+                 				plotLines:[{color:"#929293",width:2}],
+                 				title:{text:""},
+                 				gridLineColor:"#4D4D4D",
+                 				labels:{style:{fontWeight:"bold",fontSize:"11px",color:"#999999"}}
+                 				},{	endOnTick:false,
+                     				plotLines:[{color:"#929293",width:2}],
+                     				title:{text:""},
+                     				gridLineColor:"#4D4D4D",
+                     				labels:{style:{fontWeight:"bold",fontSize:"11px",color:"#999999"}}
+                     				}],
+     		rangeSelector:{enabled:false},
+     		tooltip:{crosshairs:[{zIndex:4}]},
+     		legend:{align:"right",
+     				verticalAlign:"top",
+     				enabled:true,
+     				y:0,
+     				floating:false,
+     				backgroundColor:null,
+     				borderColor:null,
+     				itemStyle:{color:"#ffffff"}
+     		},
+     		plotOptions:{
+     				series:{dataGrouping:{groupPixelWidth:1},
+     						showCheckbox:false,
+     						turboThreshold:0
+     				},
+     				line:{ dataLabels:{enabled:false},
+     					  showCheckbox:true,
+     					  lineWidth:1,
+     					  animation:false,
+     					  marker:{enabled:false},
+     					  states:{hover:{enabled:false},
+     						      marker:{enabled:false}}
+     					  },
+     				area:{	dataLabels:{enabled:false},
+     						fillOpacity:1,
+     						animation:false,
+     						lineWidth:1,
+     						shadow:false,
+     						hover:{"enabled":false},
+     						marker:{"enabled":false},
+     						states:{hover:{enabled:false},
+     								marker:{enabled:false}}
+     						}
+     				}
+		};
+ };
+ 
+ var gaugeOptions = {
+
+	        chart: {
+	            type: 'solidgauge'
+	        },
+
+	        title: null,
+
+	        pane: {
+	            center: ['50%', '85%'],
+	            size: '140%',
+	            startAngle: -90,
+	            endAngle: 90,
+	            background: {
+	                backgroundColor: (Highcharts.theme && Highcharts.theme.background2) || '#EEE',
+	                innerRadius: '60%',
+	                outerRadius: '100%',
+	                shape: 'arc'
+	            }
+	        },
+
+	        tooltip: {
+	            enabled: false
+	        },
+
+	        // the value axis
+	        yAxis: {
+	            stops: [
+	                [0.1, '#55BF3B'], // green
+	                [0.5, '#DDDF0D'], // yellow
+	                [0.9, '#DF5353'] // red
+	            ],
+	            lineWidth: 0,
+	            minorTickInterval: 10,
+	            tickPixelInterval: 100,
+	            tickWidth: 1,
+	            title: {
+	                y: -70
+	            },
+	            labels: {
+	                y: 16
+	            }
+	        },
+
+	        plotOptions: {
+	            solidgauge: {
+	                dataLabels: {
+	                    y: 5,
+	                    borderWidth: 0,
+	                    useHTML: true
+	                }
+	            }
+	        }
+	    };
+
+ 
+ function loadPage() { 
+	 
+ 	initGeoUtils();
+ 	
+ 	
+ 	dmap = new DMap();
+ 	dmap.parseURLParameters();
+ 	dmap.initPanels();
+ 	dmap.initInputForm();
+ 	dmap.bp();
+ 	dmap.cK();
+ 	dmap.clearDirectionsPanel();
+ 	
+ 
+ 	if (dmap.startLoc && dmap.endLoc && dmap.ai > 0) { 
+ 		setMode(dmap.ai);
+ 		dmap.setupMap();
+ 		dmap.bw();
+ 	} else { 
+ 		setMode(0);
+ 	} 
+ 	
+ 	if (window.DeviceMotionEvent != undefined) {
+ 		dmap.initGryo();
+ 	}
+ 	
+ 	dmap.buildGuages();
+ 	
+ 	/*
+ 	setInterval( function() {
+ 		var landscapeOrientation = window.innerWidth/window.innerHeight > 1;
+ 		if ( landscapeOrientation) {
+ 			
+ 		} else {
+ 			
+ 		}
+ 		
+ 	}, 100);
+ 	*/
+ };
+ 
+ //function unloadPage() { 
+ //};
+
+ function resizePage() {
+ 	if (typeof ("GMap2") == "undefined") { 
+ 		return;
+ 	} 
+ 	dmap.calcWindowDimensions();
+ 	dmap.resizeElements();
+ };
+ 
+ function setMode(a) { 
+ 	if (a != dmap.mode) { 
+ 		dmap.mode = a;
+ 		dmap.resizeElements();
+ 		//eid("dirlink").className = (a == 1) ? "mb1" : "mb0";
+ 		//eid("svlink").className = (a == 2) ? "mb1" : "mb0";
+ 		if (a == 0 || a == 1) { 
+ 			pauseAnimation();
+ 			dmap.showPegman(false);
+ 		} 
+ 		if (a == 2) { 
+ 			if (!pan) { 
+ 				dmap.setupStreetview();
+ 			} 
+ 			dmap.showPegman(true);
+ 		} 
+ 	} 
+ };
+ 
+ function resetDirections() { 
+ 	dmap.isRunning = false;
+ 	dmap.showPegman(false);
+
+ 	if (dmap.directionsRenderer) { 
+ 		dmap.directionsRenderer.setMap(null);
+ 	} 
+ 	
+ 	setMode(0);
+ 	dmap.bp();
+ };
+ 
+ function pauseAnimation() { 
+ 	if (dmap.bk && dmap.isRunning) { 
+ 		playAnimation();
+ 	} 
+ };
+ 
+ function playAnimation() { 
+ 	if (!dmap.bk) { 
+ 		eid("playButton").value = "Pause";
+ 		$("#playButton").text("Pause");
+ 		setMode(2);
+ 		dmap.startRoute();
+ 	} else { 
+ 		dmap.isRunning = !dmap.isRunning;
+ 		eid("playButton").value = dmap.isRunning ? "Pause" : "Play";
+ 		$("#playButton").text(dmap.isRunning ? "Pause" : "Play");
+ 		if (dmap.isRunning) { 
+ 			if (map) { 
+ 				map.setCenter(dmap.l);
+ 				if (dmap.aI == 0) { 
+ 					map.setZoom(dmap.mapZoom);
+ 				} 
+ 				setMode(2);
+ 			}
+ 		}
+ 	}
+ };
+ 
+ function restartAnimation() { 
+ 	playAnimation();
+ };
+ 
+ function destinationReached() {
+	 callAjax("services/api/dropbox",function() {
+		 //notify route saved.
+	 });
+ }
+ 
+ function getIncrementFromBike() {
+		 
+ if (dmap.isRunning) { 
+	 
+	 //get delta from bike plus all other meta fields
+	 callAjax("services/api/consumeDelta/"+ dmap.l.lat() + "/"+ dmap.l.lng(), function(response) {
+ 		response = JSON.parse(response);
+		var dK = response.distance;
+		var timeSecs = new Date(null);
+		timeSecs.setSeconds(response.time/1000);
+		
+ 		document.getElementById('distDisplay').innerHTML 		= "Distance : "  + (response.totalDistance* 0.0006214).toFixed(2) + " Miles ";
+ 		document.getElementById('speedDisplay').innerHTML 		= "Speed : " 	 + response.speed.toFixed(1) + " MPH" ;
+ 		document.getElementById('cadenceDisplay').innerHTML 	= "Cadence : " 	 + response.cadence.toFixed(1) + " RPM" ;
+ 		document.getElementById('timeDisplay').innerHTML 		= "Time : " 	 + timeSecs.toISOString().substr(11, 8); 
+ 		document.getElementById('aveSpeedDisplay').innerHTML 	= "Ave Speed : " + response.aveSpeed.toFixed(1) + " MPH" ;
+ 		document.getElementById('maxSpeedDisplay').innerHTML 	= "Max Speed : " + response.maxSpeed.toFixed(1) + " MPH" ;
+ 		document.getElementById('powerDisplay').innerHTML 		= "Power : " 	 + response.power.toFixed(1) + " Watts" ;
+ 		
+ 		dmap.updateGuage('container-speed',	Math.floor(response.speed * 10)/10);
+ 		dmap.updateGuage('container-rpm',	Math.floor(response.cadence * 10)/10);
+ 		dmap.updateGuage('container-power',	Math.floor(response.power));
+ 		
+ 		//dmap.updateSpeedGuage(Math.floor(response.speed * 10)/10);
+ 		//dmap.updateRpmGuage(Math.floor(response.cadence * 10)/10);
+ 		//dmap.updatePowerGuage(Math.floor(response.power));
+ 		
+ 		//rowPos holds the key to working out where we are along the polyline path an hence the altitude & incline data.
+ 		var rowPos  = Math.round((response.totalDistance / dmap.currentDirections.routes[0].legs[0].distance.value) * dmap.inclineData.length);
+ 		
+ 		if (rowPos < dmap.inclineData.length) {
+	 		var curGrad = dmap.inclineData[rowPos];
+	 		dmap.pitch =  curGrad[1]/(-3);
+	 		//dmap.chart.series[2].setData([2,2,3,4,5])//
+	 		eraseEarly = false;//(dmap.chart.series[0].data.length > 100);
+	 		
+	 		dmap.chart.series[0].addPoint([response.time, Math.floor(dmap.elevationData[rowPos][1])],false,eraseEarly);
+	 		dmap.chart.series[1].addPoint([response.time, curGrad[1]],false,eraseEarly);
+	 		dmap.chart.series[2].addPoint([response.time, response.speed],false,eraseEarly);
+	 		dmap.chart.series[3].addPoint([response.time, response.cadence],false,eraseEarly);
+	 		dmap.chart.series[4].addPoint([response.time, Math.floor(response.power)],false,eraseEarly);
+	 		dmap.chart.redraw();
+	 		
+	 		var altitude = dmap.elevationData[rowPos];
+	 		
+	 		// callAjax("api2/bike?load="+ (3+(curGrad[1]/8)).toFixed(1) + "&altitude=" + altitude, function(response1){
+	 		if (dK>0) {
+		 		callAjax("services/api/bikeLoad/"+ (3+(curGrad[1]/8)).toFixed(1) + "/" + altitude[1], function(response) {
+		 			
+		 			var resp = JSON.parse(response);
+		 			//dmap.updateLoadGuage(resp.load);
+		 			dmap.updateGuage('container-load', resp.load);
+
+		 		 });
+	 		}
+ 		}
+ 		
+ 		dmap.ae += dK;
+ 		
+ 		var v = dmap.routeLegs[dmap.aI];
+ 		
+ 		while (v && dmap.ae >= v.distance) { 
+ 			dmap.ae -= v.distance;
+ 			dmap.aI++;
+ 			
+ 			if (dmap.aI < dmap.routeLegs.length) { 
+ 				v = dmap.routeLegs[dmap.aI];
+ 				
+ 			} else { 
+ 				v = dmap.routeLegs[dmap.routeLegs.length - 1];
+ 				dmap.l = v.end;
+ 				map.setCenter(v.end);
+ 				if (pan) { 
+ 					pan.setPosition(dmap.l);
+ 					pan.setPov({ heading: v.bearing, pitch: dmap.pitch, zoom: dmap.streeViewZoom });
+ 					dmap.updateMarker(dmap.l, v.bearing);
+ 				} 
+ 				eid("playButton").value = "Play";
+ 				$("#playButton").text("Play")
+ 				dmap.isRunning = false;
+ 				dmap.aI = 0;
+ 				dmap.ae = 0;
+ 				v = null;
+ 				destinationReached();
+ 			} 
+ 		} 
+ 		
+ 		if (v) { 
+ 			var aA = dmap.ae / v.distance;
+ 			var y = v.end.lat() * aA + v.start.lat() * (1 - aA);
+ 			var x = v.end.lng() * aA + v.start.lng() * (1 - aA);
+ 			var pt = new google.maps.LatLng(y, x);
+ 			var pts = [dmap.ax, pt];
+
+ 			dmap.ax = pt;
+ 			dmap.l = pt;
+ 			map.setCenter(dmap.l);
+ 			if (pan) { 
+ 				pan.setPosition(dmap.l);
+ 				pan.setPov({ heading: v.bearing, pitch: dmap.pitch, zoom: dmap.streeViewZoom });
+ 				pan.setVisible(Point2PointDistance(pan.location.latLng,dmap.l)<100);
+
+ 				dmap.updateMarker(pt, v.bearing);
+ 			} 
+ 		} 
+ 		
+	 	});
+ 	} 
+
+ 	setTimeout("getIncrementFromBike()", dmap.animationDelay);
+
+ }
+ 
+ function callAjax(url, callbackFn){
+	var xmlhttp;
+	// compatible with IE7+, Firefox, Chrome, Opera, Safari
+	xmlhttp = new XMLHttpRequest();
+	
+	xmlhttp.onreadystatechange = function(){
+	    if (xmlhttp.readyState == 4 && xmlhttp.status == 200){
+	    	callbackFn(xmlhttp.responseText);
+	    }
+	}
+	xmlhttp.open("GET", url, true);
+	xmlhttp.setRequestHeader('Access-Control-Allow-Origin', "*");
+	xmlhttp.setRequestHeader('Access-Control-Allow-Methods', "GET");
+	xmlhttp.setRequestHeader('Access-Control-Allow-Headers', "Content-Type");
+	try {
+		xmlhttp.send();
+	} catch(error){
+		console.log(error);
+	}
+ }
+ 
+ function postAjax(url, data, callbackFn){
+	 var xmlhttp;
+	 // compatible with IE7+, Firefox, Chrome, Opera, Safari
+	 xmlhttp = new XMLHttpRequest();
+	
+	 xmlhttp.onreadystatechange = function() {
+	     if (xmlhttp.readyState == 4 && xmlhttp.status == 200){
+	     	callbackFn(JSON.parse(xmlhttp.responseText));
+	     }
+	 }
+	 xmlhttp.open("POST", url, true);
+	 xmlhttp.setRequestHeader('Access-Control-Allow-Origin', "*");
+	 xmlhttp.setRequestHeader('Access-Control-Allow-Methods', "GET");
+	 xmlhttp.setRequestHeader('Access-Control-Allow-Headers', "Content-Type");
+	 xmlhttp.setRequestHeader("Content-Type","application/json");
+	// xmlhttp.send(data);
+	 try {
+	 	xmlhttp.send(data);
+	 } catch(error){
+	 	console.log(error);
+	 }
+	 
+}
+/*
+function getElevationForPath(polyline,callbackFn,distanceKM,journeyName){
+	
+		var ELEVATION_BASE_URL = "api2/Elevation";
+		var pathStr  = "enc:" + polyline;
+		var samples = 500;
+		var distanceUnit = (distanceKM / samples) * 0.621371;
+		var elvtn_args={};
+		elvtn_args.samples 	= samples;
+		elvtn_args.path 	= pathStr;
+		elvtn_args.key 		= "AIzaSyDVyQlW4jGu8DKHMBRzKdXS1xSyhlk2jr4";//not needed!
+		
+		url = ELEVATION_BASE_URL + '?samples=' + encodeURIComponent( elvtn_args.samples) +  '&path='  +  elvtn_args.path  +  '&key=' + encodeURIComponent("" + elvtn_args.key) + "&journeyName="+ encodeURIComponent(journeyName) ;
+
+		callAjax(url,function(response) {
+			response = JSON.parse(response);
+			var results=[];
+			var elevationArray = [];
+			var inclineArray = [];
+			//elevationArray.push(['Distance (Miles)','Elevation (Ft)','Gradient']);
+			//inclineArray.push(['Start',0]);
+		
+			for (var x=0;x< response.results.length;x++){
+				
+				
+				if (x>0) {
+					
+					var vc = ( response.results[x].elevation- response.results[x-1].elevation ) * 3.28084;
+					
+					var gc = (vc / (distanceUnit *3.3) * 100);
+					inclineArray.push([(x*distanceUnit/1000).toFixed(2) ,gc]);
+					
+					elevationArray.push([(x*distanceUnit/1000).toFixed(2) ,(response.results[x].elevation * 3.28084)]);
+				} else {
+					//var vc = (response.results[x].elevation - response.results[x+1].elevation) * 3.28084;
+					
+					//var gc = (vc / (distanceUnit *3.3) * 100);
+					elevationArray.push([(x*distanceUnit/1000).toFixed(2),(response.results[x].elevation * 3.28084) ]);
+					inclineArray.push([(x*distanceUnit/1000).toFixed(2) ,0]);
+				}
+				//elevationArray.push(response.results[x].elevation.toFixed(0));
+			}
+			//3.28084
+			//callbackFn(getChart(elevationArray));
+			dmap.elevationData = elevationArray;
+			dmap.inclineData =inclineArray;
+			results.push(elevationArray);
+			results.push(inclineArray);
+			callbackFn(results);
+		});
+};
+*/
+//function getElevationForPathInt(polyline, callbackFn, distanceKM, journeyName){
+	
+//}
+
+function getElevationForPath(polyline, callbackFn, distanceKM, journeyName){
+	
+	var ELEVATION_BASE_URL = "services/api/elevation";
+	var pathStr  = "enc:" + polyline;
+	var samples = 500;
+	var distanceUnit = (distanceKM / samples) * 0.621371;
+	var elvtn_args={};
+	var chartResults =[];
+	
+	elvtn_args.samples 	= samples;
+	elvtn_args.path 	= pathStr;
+	elvtn_args.key 		= "AIzaSyDVyQlW4jGu8DKHMBRzKdXS1xSyhlk2jr4";//not needed!
+	elvtn_args.journeyName = encodeURIComponent(journeyName) ;
+	url = ELEVATION_BASE_URL;
+
+	postAjax(url,JSON.stringify(elvtn_args) ,function(results) {
+
+		var elevationArray = [];
+		var inclineArray = [];
+	
+		for (var x=0;x< results.length;x++){
+			
+			if (x>0) {
+				
+				var vc = ( results[x].elevation- results[x-1].elevation ) * 3.28084;
+				
+				var gc = (vc / (distanceUnit *3.3) * 100);
+				inclineArray.push([(x*distanceUnit/1000).toFixed(2) ,gc]);
+				
+				elevationArray.push([(x*distanceUnit/1000).toFixed(2) ,(results[x].elevation * 3.28084)]);
+			} else {
+	
+				elevationArray.push([(x*distanceUnit/1000).toFixed(2),(results[x].elevation * 3.28084) ]);
+				inclineArray.push([(x*distanceUnit/1000).toFixed(2) ,0]);
+			}
+	
+		}
+
+		//callbackFn(getChart(elevationArray));
+		dmap.elevationData = elevationArray;
+		dmap.inclineData = inclineArray;
+		chartResults.push(elevationArray);
+		chartResults.push(inclineArray);
+		callbackFn(chartResults);
+	});
+};
+ 
+ DMap.prototype.initGryo = function() { 
+	 
+	 window.ondevicemotion = function(e) {
+			
+		this.AxisAx = event.accelerationIncludingGravity.x * 5;
+		this.AxisAy = event.accelerationIncludingGravity.y * 5;
+			
+		this.accelerationX = e.accelerationIncludingGravity.x;
+		this.accelerationY = e.accelerationIncludingGravity.y;
+		this.accelerationZ = e.accelerationIncludingGravity.z;
+		
+		if ( e.rotationRate ) {
+			this.rotationAlpha = e.accelerationIncludingGravity.x;
+			this.rotationBeta = e.accelerationIncludingGravity.y;
+			this.rotationGamma = e.accelerationIncludingGravity.z;
+		}		
+	}
+ };
+ 
+ DMap.prototype.highlightInterval = function (id, startTime, endTime) {
+
+     if (this.chart.xAxis[0].max < endTime || this.chart.xAxis[0].min > startTime) {
+         return false;
+     }
+
+     startTime = startTime - this.chart.xAxis[0].min;
+     endTime = endTime - this.chart.xAxis[0].min;
+
+     var width = this.chart.xAxis[0].width;
+     var dataMax = this.chart.xAxis[0].max / 1000;
+     var dataMin = this.chart.xAxis[0].min / 1000;
+
+     var pixelWidth = width / (dataMax - dataMin);
+
+     var plotX1 = pixelWidth * startTime / 1000;
+     var plotX2 = pixelWidth * endTime / 1000;
+
+     var difference = this.chart.chartHeight - this.chart.plotHeight - this.chart.plotTop;
+
+     this.chart.renderer.rect(this.chart.plotLeft + (this.chart.chartWidth - this.chart.plotLeft - this.chart.plotSizeX) + plotX1, 0, plotX2 - plotX1, this.chart.chartHeight - difference, 0)
+         .attr({
+             'stroke-width': 0,
+             fill: 'yellow',
+             opacity: .2,
+             zIndex: 3,
+             id: id
+         })
+         .add();
+     return false;
+ };
+ 
+ 
+ DMap.prototype.buildChart2 = function(data){
+		    
+	 
+	 	this.chartOptions.series = [{name:"Altitude", type:["area"], data:data[0], dataGrouping:{smoothed:false},tooltip: {
+            valueSuffix: ' ft'
+        }},
+        
+		{name:"Incline", color:"#00FF00", type:["line"], data:data[1]}, 
+		{name:"Speed",color:"#ff0000", type:["line"], data:{}}, 
+		{name:"Cadence",color:"#ffffff",type:["line"],data:{}}, 
+		{name:"Power",color:"#ffff4d",type:["line"],data:{},shadow:true}];
+	 	
+	 
+	  //  this.chartOptions.series[0].data = elevationData[0];
+	 //   this.chartOptions.series[1].data = elevationData[1];
+
+	   // this.chartOptions.yAxis.plotLines[0].value = 218;
+		$("#stockContainer").highcharts('StockChart', this.chartOptions);
+		this.chart= $("#stockContainer").highcharts();
+ }
+ 
+ 
+ DMap.prototype.buildChart = function(data){
+	    
+	 /*
+	 	this.chartOptions.series= [	{name:"Altitude", type:["area"], data:[0,0], dataGrouping:{smoothed:false},tooltip: { valueDecimals: 2,valueSuffix: ' ft' },fillColor : { linearGradient : {   x1: 0,
+                y1: 1,
+                x2: 0,
+                y2: 0
+            },
+            stops : [ [0, Highcharts.getOptions().colors[0]],[1, Highcharts.Color(Highcharts.getOptions().colors[0]).setOpacity(0).get('rgba')] ]
+        }},
+        */
+        
+//        this.chartOptions.series = [{name:"Altitude", type:["area"], data:data[0], dataGrouping:{smoothed:false},tooltip: {  valueSuffix: ' ft' }},
+	
+         this.chartOptions.series = [{name:"Altitude", type:["area"], yAxis: 0, data:[0,0], dataGrouping:{smoothed:false},tooltip: {  valueSuffix: ' ft' }},
+		{name:"Incline", color:"#00FF00", type:["line"], yAxis: 1, data:[0,0],tooltip: { valueDecimals: 2,valueSuffix: ' %' }}, 
+		{name:"Speed",color:"#ff0000", type:["line"], yAxis: 2, data:[0,0],tooltip: { valueDecimals: 2,valueSuffix: ' Mph' }}, 
+		{name:"Cadence",color:"#ffffff",type:["line"], yAxis: 3, data:[0,0],tooltip: { valueDecimals: 2,valueSuffix: ' Rpm' }}, 
+		{name:"Power",color:"#ffff4d",type:["line"], yAxis: 4,data:[0,0],shadow:true}];
+
+	  //  this.chartOptions.yAxis.plotLines[0].value = 218;
+		$("#stockContainer").highcharts('StockChart', this.chartOptions);
+		this.chart= $("#stockContainer").highcharts();
+		
+		
+}
+ 
+ DMap.prototype.buildGuages = function() {
+	// setOptions(Highcharts.theme);
+	 
+	 $('#container-speed').highcharts(Highcharts.merge(Highcharts.theme,Highcharts.merge(gaugeOptions, {
+	        yAxis: {
+	            min: 0,
+	            max: 60,
+	            title: {
+	                text: 'Speed'
+	            }
+	        },
+	        credits: {
+	            enabled: false
+	        },
+	        series: [{
+	            name: 'Speed',
+	            data: [0],
+	            dataLabels: {
+	                format: '<div style="text-align:center"><span style="font-size:12px;color:' +
+	                    ((Highcharts.theme && Highcharts.theme.contrastTextColor) || 'black') + '">{y}</span><br/>' +
+	                       '<span style="font-size:8px;color:silver">Mph</span></div>'
+	            },
+	            tooltip: {
+	                valueSuffix: ' Mph'
+	            }
+	        }]
+
+	    })));
+
+	    // The RPM gauge
+	    $('#container-rpm').highcharts(Highcharts.merge(Highcharts.theme,Highcharts.merge(gaugeOptions, {
+	        yAxis: {
+	            min: 0,
+	            max: 150,
+	            title: {
+	                text: 'Rpm'
+	            }
+	        },
+	        
+	        credits: {
+	            enabled: false
+	        },
+	        
+	        series: [{
+	            name: 'Cadence',
+	            data: [0],
+	            dataLabels: {
+	                format: '<div style="text-align:center"><span style="font-size:12px;color:' +
+	                    ((Highcharts.theme && Highcharts.theme.contrastTextColor) || 'black') + '">{y:.1f}</span><br/>' +
+	                       '<span style="font-size:8px;color:silver"> Rpm</span></div>'
+	            },
+	            tooltip: {
+	                valueSuffix: ' revolutions/min'
+	            }
+	        }]
+
+	    })));
+	    
+	    // The Power gauge
+	    $('#container-power').highcharts(Highcharts.merge(Highcharts.theme,Highcharts.merge(gaugeOptions, {
+	        yAxis: {
+	            min: 0,
+	            max: 1000,
+	            title: {
+	                text: 'Watts'
+	            }
+	        },
+	        
+	        credits: { enabled: false },
+	        
+	        series: [{
+	            name: 'Cadence',
+	            data: [0],
+	            dataLabels: {
+	                format: '<div style="text-align:center"><span style="font-size:12px;color:' +
+	                    ((Highcharts.theme && Highcharts.theme.contrastTextColor) || 'black') + '">{y:.1f}</span><br/>' +
+	                       '<span style="font-size:8px;color:silver"> Watts</span></div>'
+	            },
+	            tooltip: {
+	                valueSuffix: ' Watts'
+	            }
+	        }]
+
+	    })));
+	    
+	    // The Load gauge
+	    $('#container-load').highcharts(Highcharts.merge(Highcharts.theme,Highcharts.merge(gaugeOptions, {
+	        yAxis: {
+	            min: 1,
+	            max: 5,
+	            title: {
+	                text: 'Load'
+	            }
+	        },
+	        
+	        credits: { enabled: false  },
+	        
+	        series: [{
+	            name: 'Load',
+	            data: [0],
+	            dataLabels: {
+	                format: '<div style="text-align:center"><span style="font-size:12px;color:' +
+	                    ((Highcharts.theme && Highcharts.theme.contrastTextColor) || 'black') + '">{y:.1f}</span><br/>' +
+	                       '<span style="font-size:8px;color:silver"></span></div>'
+	            },
+	            tooltip: {
+	                //valueSuffix: ' revolutions/min'
+	            }
+	        }]
+
+	    })));
+ }
+	 
+
+ 
+ DMap.prototype.updateGuage = function (gauge, newValue) {
+	var chart = $('#' + gauge).highcharts(), point;
+ 	if (chart) {
+     	point = chart.series[0].points[0];
+     	point.update(newValue);
+ 	}
+ }
+ 
+ /*
+ DMap.prototype.updateSpeedGuage = function (speed) {
+	 
+	 var chart = $('#container-speed').highcharts(),
+     point;
+
+ 	if (chart) {
+     	point = chart.series[0].points[0];
+     	point.update(speed);
+ 	}
+ 	
+ }
+ 
+DMap.prototype.updateRpmGuage = function (rpm) {
+	 
+	 var chart = $('#container-rpm').highcharts(),
+     point;
+
+ 	if (chart) {
+     	point = chart.series[0].points[0];
+     	point.update(rpm);
+ 	}
+ 	
+ }
+ 
+DMap.prototype.updatePowerGuage = function (power) {
+	 
+	 var chart = $('#container-power').highcharts(),
+    point;
+
+	if (chart) {
+    	point = chart.series[0].points[0];
+    	point.update(power);
+	}
+	
+}
+
+DMap.prototype.updateLoadGuage = function (load) {
+	 
+	 var chart = $('#container-load').highcharts(),
+    point;
+
+	if (chart) {
+    	point = chart.series[0].points[0];
+    	point.update(load);
+	}
+	
+}
+ */
+ 
+ DMap.prototype.testChart = function (startTime, endTime) {
+     this.highlightInterval('selectedRect', startTime, endTime);
+ };
+ 
+/*
+ DMap.prototype.displayLocationElevation = function (location, elevator, infowindow) {
+	  // Initiate the location request
+	  elevator.getElevationForLocations({
+	    'locations': [location]
+	  }, function(results, status) {
+	    infowindow.setPosition(location);
+	    if (status === google.maps.ElevationStatus.OK) {
+	      // Retrieve the first result
+	      if (results[0]) {
+	        // Open the infowindow indicating the elevation at the clicked position.
+	        infowindow.setContent('The elevation at this point <br>is ' +
+	            results[0].elevation + ' meters.');
+	      } else {
+	        infowindow.setContent('No results found');
+	      }
+	    } else {
+	      infowindow.setContent('Elevation service failed due to: ' + status);
+	    }
+	  });
+}
+ */
+ 
+ DMap.prototype.drawZone = function (chart,low, high, id, zoneName, threshold, axis) {
+     var extremes = this.chart.yAxis[axis].getExtremes();
+
+     var yMax = extremes.max;
+     var yMin = 0;
+     var ftp = threshold;
+     var difference = chart.chartHeight - chart.plotHeight - chart.plotTop;
+     var pixelHeight = chart.plotSizeY / (yMax - yMin);
+
+     var top = chart.yAxis[axis].top;
+     var targetHigh = (high * ftp);
+     var targetLow = (low * ftp);
+     var topOffset = (targetHigh * pixelHeight);
+     targetLow = topOffset - (targetLow * pixelHeight);
+
+     var yStart = chart.plotSizeY - topOffset + top;
+
+     chart.renderer.rect(chart.chartWidth - chart.plotSizeX, yStart, chart.chartWidth, targetLow, 0)
+         .attr({
+             'stroke-width': 0,
+             fill: 'yellow',
+             opacity: .2,
+             zIndex: 3,
+             id: id
+         })
+         .add();
+
+     chart.renderer.text(zoneName, chart.chartWidth - chart.plotSizeX + 5, yStart + targetLow - 5)
+         .attr({
+             id: id + "2",
+             zIndex: 5,
+             fontWeight: 'bold'
+         })
+         .css({
+             color: '#ffffff',
+             fontSize: '14px'
+         })
+         .add();
+
+     chart.renderer.text(zoneName, chart.chartWidth - chart.plotSizeX + 5 + 1, yStart + targetLow - 5 + 1)
+         .attr({
+             id: id + "3",
+             zIndex: 4,
+             fontWeight: 'bold'
+         })
+         .css({
+             color: '#000000',
+             fontSize: '14px'
+         })
+         .add();
+ };
+ 
+ 
+ function RouteLeg(pt1, pt2) { 
+	 
+ 	this.start = pt1;
+ 	this.end   = pt2;
+ 	this.distance = Point2PointDistance(pt1, pt2);
+ 	this.bearing  = Point2PointBearing(pt1, pt2);
+ 	var x = (pt1.lng() + pt2.lng()) / 2;
+ 	var y = (pt1.lat() + pt2.lat()) / 2;
+ 	this.latLng = new google.maps.LatLng(y, x);
+ 	
+ };
+ 
+ DMap.prototype.buildRouteLegs = function () { 
+ 	this.routeLegs = [];
+ 	for (var i = 0; i < this.bO.length - 1; i++) { 
+ 		var pt1 = this.bO[i];
+ 		var pt2 = this.bO[i + 1];
+ 		var routeLeg = new RouteLeg(pt1, pt2);
+ 		this.routeLegs.push(routeLeg);
+ 	} 
+ };
+ 
+ DMap.prototype.startRoute = function () {
+	 
+ 	this.bk = true;
+ 	this.l = this.bO[0];
+ 	map.setCenter(this.l);
+ 	//map.setZoom(this.al);
+ 	map.setZoom(this.mapZoom);
+ 	this.ax = this.bO[0].pt;
+ 	this.isRunning = true;
+ 	setTimeout("getIncrementFromBike()", 1);
+ 	
+ };
+ 
+ DMap.prototype.getUrlParam = function (q, n) { 
+ 	var r = "";
+ 	if (q && q.length > 0 && n && n.length) { 
+ 		var p = n + "=";
+ 		var b = q.indexOf(p);
+ 		if (b != -1) { 
+ 			b += p.length;
+ 			var e = q.indexOf("&", b);
+ 			if (e == -1) e = n.length;
+ 			r = unescape(q.substring(b, e));
+ 		} 
+ 		
+ 	} 
+ 	return r;
+ };
+ 
+ DMap.prototype.parseURLParameters = function () { 
+	 
+ 	var params = document.location.search.substring(1) + "&";
+ 	
+ 	var paramFrom = this.getUrlParam(params, "from");
+ 	if (paramFrom) { 
+ 		this.startLoc = paramFrom;
+ 	} 
+ 	
+ 	var paramTo = this.getUrlParam(params, "to");
+ 	if (paramTo) { 
+ 		this.endLoc = paramTo;
+ 		
+ 	} 
+ 
+ 	var paramVia = this.getUrlParam(params, "via");
+ 	if (paramVia) { 
+ 		this.viaLoc = paramVia;
+ 	} 
+ 	
+ 	var paramMapType = this.getUrlParam(params, "maptype");
+ 	if (paramMapType) { 
+ 		this.mapType = parseInt(paramMapType);
+ 	} 
+ 	
+ 	var paramTravelMode = this.getUrlParam(params, "mode");
+ 	if (paramTravelMode) { 
+ 		this.travelMode = parseInt(paramTravelMode);
+ 	} 
+ 	
+ 	var paramAvoidHighways = this.getUrlParam(params, "ah");
+ 	if (paramAvoidHighways) { 
+ 		this.avoidHighways = parseInt(paramAvoidHighways);
+ 	} 
+ 	
+ 	var paramAvoidTolls = this.getUrlParam(params, "at");
+ 	if (paramAvoidTolls) { 
+ 		this.avoidTolls = parseInt(paramAvoidTolls);
+ 	} 
+ 	
+ 	var paramRegion = this.getUrlParam(params, "region");
+ 	if (paramRegion) { 
+ 		this.region = paramRegion;
+ 	} 
+ 	var paramUnits = this.getUrlParam(params, "units");
+ 	if (paramUnits) { 
+ 		this.aL = parseInt(paramUnits);
+ 	} 
+ 	var ac = this.getUrlParam(params, "initial");
+ 	if (ac) { 
+ 		this.ai = parseInt(ac);
+ 	} 
+ 	var cz = this.getUrlParam(params, "fi");
+ 	if (cz) { 
+ 		//this.bH = parseInt(cz);
+ 		this.animationDelay = parseInt(cz);
+ 	} 
+ 	//var aQ = this.getUrlParam(params, "fs");
+ 	//if (aQ) { 
+ 	//	this.bq = parseInt(aQ);
+ 	//} 
+ 	var cp = this.getUrlParam(params, "z");
+ 	if (cp) { 
+ 		this.mapZoom = parseInt(cp);
+ 	} 
+ 	var cI = this.getUrlParam(params, "draggable");
+ 	if (cI) { 
+ 		var d = parseInt(cI);
+ 		if (d == 0) { 
+ 			this.draggableRoute = false;
+ 		} else { 
+ 			this.draggableRoute = true;
+ 		} 
+ 	} 
+ };
+ 
+ var travelModes = [google.maps.DirectionsTravelMode.DRIVING, google.maps.DirectionsTravelMode.WALKING, google.maps.DirectionsTravelMode.BICYCLING];
+ var unitSystems = [null, google.maps.DirectionsUnitSystem.METRIC, google.maps.DirectionsUnitSystem.IMPERIAL];
+ 
+ function parseDirForm() { 
+
+ 	dmap.startLoc 	= eid("fromText").value;
+ 	dmap.endLoc 	= eid("toText").value;
+ 	dmap.viaLoc 	= eid("viaText").value;
+ 	dmap.region 	= eid("regionText").value;
+ 	dmap.mapType 	= eid("mapTypeSelect").value;
+ 	
+ 	if (!dmap.startLoc || !dmap.endLoc) { 
+ 		alert("Please enter a 'From' and 'To' address");
+ 		return;
+ 	} 
+ 	
+ 	//dmap.bq 			= parseInt(eid("stepText").value);
+ 	dmap.animationDelay = parseInt(eid("intervalText").value);
+ 	dmap.mapZoom 		= parseInt(eid("zoomText").value);
+ 	
+ 	//if (dmap.bq > 0 && dmap.bq < 100000000) { 
+ 	//} else { 
+ 	//	dmap.bq = 20;
+ 	//} 
+
+ 	if (dmap.animationDelay >= 100 && dmap.animationDelay < 60000) { 
+ 	} else { 
+ 		dmap.animationDelay = 1000;
+ 	} 
+
+ 	if (dmap.mapZoom >= 1 && dmap.mapZoom < 22) { 
+ 	} else { 
+ 		dmap.mapZoom = 15;
+ 	} 
+ 	
+ 	dmap.setWaitDiv("Getting Directions ...");
+ 	
+ 	setMode(3);
+ 	
+ 	if (!map) { 
+ 		dmap.setupMap();
+ 	} else {
+ 		map.setOptions({mapTypeId: mapTypes[dmap.mapType]});
+ 	}
+ 	dmap.bw();
+ };
+ 
+ DMap.prototype.clearDirectionsPanel = function () { 
+ 	this.directionsPanel.innerHTML = "<div id='directionsDiv'></div>";
+ };
+ 
+ DMap.prototype.bw2 = function (startLoc,endLoc, waypoints,name) { 
+ 
+ 	this.startLoc 		= startLoc;
+ 	this.endLoc 		= endLoc;
+ 	this.viaLoc 		= "";
+ 	this.draggableRoute = false;
+ 	var d= new Date();
+ 	
+ 	this.journeyName 	= name ;//+ " " + d.toISOString();
+ 	
+ 	if (!this.directionsRenderer) { 
+ 		this.directionsRenderer = new google.maps.DirectionsRenderer({ map: map, draggable: true, polylineOptions: { clickable: this.draggableRoute, strokeColor: "#FF0000", strokeOpacity: 0.8, strokeWeight: 3} });
+ 	} 
+ 	
+ 	this.directionsRenderer.setPanel(eid("directionsDiv"));
+
+ 	google.maps.event.addListener(this.directionsRenderer, 'directions_changed', function (a) { 
+ 		dmap.cd = dmap.directionsRenderer.getDirections();
+ 		//if (dmap.cA) { 
+ 		if (dmap.dirSvc) { 
+ 			var dQ = dmap.l;
+ 			var bX = dmap.directionsRenderer.getDirections();
+ 			//JSON.stringify(bX);
+ 			dmap.aw(bX, false);
+ 			dmap.directionsRenderer.setMap(map);
+ 			if (dmap.bk) { 
+ 				dmap.aC(dQ, true);
+ 			} 
+ 		} 
+ 	});
+ 	
+ 	
+ 	this.travelMode 	= eid("travelModeSelect").value;
+ 	this.avoidHighways 	= eid("avoidHighwaysBox").checked;
+ 	this.avoidTolls 	= eid("avoidTollsBox").checked;
+ 	var aR = { origin: this.startLoc, destination: this.endLoc, waypoints:waypoints , travelMode: google.maps.TravelMode.BICYCLING, avoidHighways: this.avoidHighways ? true : false, avoidTolls: this.avoidTolls ? true : false, region: this.region };
+
+ 	if (this.viaLoc) { 
+ 	
+ 		aR.waypoints = [];
+ 		var cg = this.viaLoc.split(",");
+ 		for (var i = 0;i < cg.length; i++) { 
+ 			var de = { location: cg[i] };
+ 			aR.waypoints.push(de);
+ 		} 
+ 		glog("waypoints = " + aR.waypoints);
+ 	} 
+ 	if (this.aL > 0) { 
+ 		aR.unitSystem = unitSystems[this.aL];
+ 	} 
+
+ 	dmap.dirSvc.route(aR, function (bK, bb) { 
+ 		if (bb == google.maps.DirectionsStatus.OK) { 
+ 			if (dmap.ai == 0) { 
+ 				dmap.ai = 2;
+ 			} 
+ 			setMode(dmap.ai);
+ 			dmap.directionsRenderer.setDirections(bK);
+ 			dmap.sendRoute(bK);
+ 			dmap.aw(bK, true);
+		 	if (dmap.ai == 2) { } 
+		} else { 
+		 	setMode(0);
+ 			alert("Get Directions Error " + bb);
+ 		} });
+ };
+ 
+ DMap.prototype.bw = function () { 
+	 
+	 	this.startLoc 		= eid("fromText").value;
+	 	this.endLoc 		= eid("toText").value;
+	 	this.viaLoc 		= eid("viaText").value;
+	 	this.draggableRoute = eid("draggableRouteBox").checked;
+	 	var d= new Date();
+	 	
+	 	this.journeyName 	= eid("fromText").value  + " to " + eid("toText").value ;//+ " " + d.toISOString();
+	 	
+	 	if (!this.directionsRenderer) { 
+	 		this.directionsRenderer = new google.maps.DirectionsRenderer({ map: map, draggable: true, polylineOptions: { clickable: this.draggableRoute, strokeColor: "#FF0000", strokeOpacity: 0.8, strokeWeight: 3} });
+	 	} 
+	 	
+	 	this.directionsRenderer.setPanel(eid("directionsDiv"));
+
+	 	google.maps.event.addListener(this.directionsRenderer, 'directions_changed', function (a) { 
+	 		dmap.cd = dmap.directionsRenderer.getDirections();
+	 		//if (dmap.cA) { 
+	 		if (dmap.dirSvc) { 
+	 			var dQ = dmap.l;
+	 			var bX = dmap.directionsRenderer.getDirections();
+	 			//JSON.stringify(bX);
+	 			dmap.aw(bX, false);
+	 			dmap.directionsRenderer.setMap(map);
+	 			if (dmap.bk) { 
+	 				dmap.aC(dQ, true);
+	 			} 
+	 		} 
+	 	});
+	 	
+	 	
+	 	this.travelMode 	= eid("travelModeSelect").value;
+	 	this.avoidHighways 	= eid("avoidHighwaysBox").checked;
+	 	this.avoidTolls 	= eid("avoidTollsBox").checked;
+	 	var aR = { origin: this.startLoc, destination: this.endLoc, travelMode: travelModes[this.travelMode], avoidHighways: this.avoidHighways ? true : false, avoidTolls: this.avoidTolls ? true : false, region: this.region };
+
+	 	if (this.viaLoc) { 
+	 	
+	 		aR.waypoints = [];
+	 		var cg = this.viaLoc.split(",");
+	 		for (var i = 0;i < cg.length; i++) { 
+	 			var de = { location: cg[i] };
+	 			aR.waypoints.push(de);
+	 		} 
+	 		glog("waypoints = " + aR.waypoints);
+	 	} 
+	 	if (this.aL > 0) { 
+	 		aR.unitSystem = unitSystems[this.aL];
+	 	} 
+
+	 	dmap.dirSvc.route(aR, function (bK, bb) { 
+	 		if (bb == google.maps.DirectionsStatus.OK) { 
+	 			if (dmap.ai == 0) { 
+	 				dmap.ai = 2;
+	 			} 
+	 			setMode(dmap.ai);
+	 			dmap.directionsRenderer.setDirections(bK);
+	 			dmap.sendRoute(bK);
+	 			dmap.aw(bK, true);
+			 	if (dmap.ai == 2) { } 
+			} else { 
+			 	setMode(0);
+	 			alert("Get Directions Error " + bb);
+	 		} });
+	 };
+	 
+ 	DMap.prototype.sendRoute = function (route) {
+	 
+		var data = JSON.stringify(route.routes[0]);
+	 	postAjax('services/api/journeys',data,function(response) {
+			/// console.log(response.responseText);
+	 	});
+
+ 	}
+ 
+	 DMap.prototype.elevationColor = function(elevation, min_ele, max_ele)  {
+	
+		 var n_colors = 10;
+		 var denominator = (max_ele - min_ele);
+		 var n_color;
+		 var colors = new Array();
+		 
+		 colors[0]="FF0000";
+		 colors[1]="FF00CC";
+		 colors[2]="A800FF";
+		 colors[3]="0C00FF";
+		 colors[4]="00a8FF";
+		 colors[5]="00FFF0";
+		 colors[6]="00FF2a";
+		 colors[7]="CCFF00";
+		 colors[8]="FCFF00";
+		 colors[9]="FFAE00";    
+		 
+		 if ((denominator ==0) || (denominator == ''))	  {
+			 n_color = n_colors+1;
+		 } else {
+			 n_color = (n_colors - Math.round (n_colors * (elevation - min_ele) / denominator))-1;
+		 }	  
+		 
+		 if (n_color <0) {
+			 n_color =0;	  
+		 }
+		 
+		 if (n_color >= n_colors) {
+			 return "#000000";	  
+		 }
+		 
+		 return "#" + colors[n_color];	
+		 
+	 }
+ 
+ 	DMap.prototype.loadGPX = function (filename,useDB) { 
+	 
+		setMode(2);
+		if (map===null){
+			dmap.setupMap();
+			
+		}
+		var me=this;
+		
+		var url = "services/api/import/gpx/" + filename +"/";
+		
+		if ((useDB !== undefined)&&(useDB==true)){
+		 url = "services/api/import/dbgpx/" + filename +"/";
+		}
+	 
+	 
+	 	callAjax(url,function(data) {
+		 
+			var obj = JSON.parse(data);
+			var i;
+			var locations = [];
+			var distance=0;
+
+			for (i=0;i<obj[0].trkseg[0].trkpt.length;i++) {
+				locations.push(new  google.maps.LatLng(parseFloat(obj[0].trkseg[0].trkpt[i].lat),parseFloat(obj[0].trkseg[0].trkpt[i].lon)));
+			 
+			 	if (i>0) {
+					distance += Point2PointDistance(locations[i-1], locations[i]) ;
+			 	}
+			}
+		 
+		//	 var waypts = [];
+		//	 for (i=0;i<locations.length;i++) {
+		//		 waypts.push({
+		//			      location: locations[i],
+		//			      stopover: false
+		//		 });
+		//	 }
+		//	 
+		 //dmap.bw2(locations[0],locations[locations.length-1],waypts);
+			 dmap.currentDirections = {routes:[{legs:[{distance:{value:0}}]}]};
+			 dmap.currentDirections.routes[0].legs[0].distance.value = distance;
+	
+			 var pline = google.maps.geometry.encoding.encodePath(locations);
+			 
+		 //polylineOptions: { clickable: this.draggableRoute, strokeColor: "#FF0000", strokeOpacity: 0.8, strokeWeight: 3}
+			 var polyOptions = {
+				  //strokeColor: '#5e96d9',
+				  clickable: false,
+				  strokeColor: "#FF0000",
+				  strokeOpacity: 0.8,
+				  strokeWeight: 3
+			 }
+				 
+			 var poly = new google.maps.Polyline(polyOptions);
+			 poly.setMap(map);
+			 var decodedSets = google.maps.geometry.encoding.decodePath(pline); 
+			 poly.setPath(decodedSets);
+			 
+			 me.journeyName=filename;
+		 /*
+		 var n_samples = 256;
+		// var latlngs = [];
+		 var elevationService = new google.maps.ElevationService();
+		 
+		 var distanceUnit = (distance / locations.length) * 0.621371;
+		 
+		 elevationService.getElevationAlongPath({
+	          path: locations,
+	          samples: n_samples
+	        }, 
+	        function(results) {  
+	        	var elevationArray = [];
+	    		var inclineArray = [];
+	    		var chartResults =[];
+	    		for (var x=0;x< results.length;x++){
+	    			
+	    			if (x>0) {
+	    				
+	    				var vc = ( results[x].elevation- results[x-1].elevation ) * 3.28084;
+	    				
+	    				var gc = (vc / (distanceUnit *3.3) * 100);
+	    				inclineArray.push([(x*distanceUnit/1000).toFixed(2) ,gc]);
+	    				
+	    				elevationArray.push([(x*distanceUnit/1000).toFixed(2) ,(results[x].elevation * 3.28084)]);
+	    			} else {
+	    	
+	    				elevationArray.push([(x*distanceUnit/1000).toFixed(2),(results[x].elevation * 3.28084) ]);
+	    				inclineArray.push([(x*distanceUnit/1000).toFixed(2) ,0]);
+	    			}
+	    	
+	    		}
+
+	    		//callbackFn(getChart(elevationArray));
+	    		dmap.elevationData = elevationArray;
+	    		dmap.inclineData = inclineArray;
+	    		chartResults.push(elevationArray);
+	    		chartResults.push(inclineArray);
+	    		callbackFn(chartResults);
+	        
+	        } );
+		 */
+		 
+			 getElevationForPath(pline, function(data) { 
+				me.buildChart(data);	 
+			 }, distance, me.journeyName);
+			 
+			 dmap.l = locations[0];
+			 dmap.bO = [];
+			 dmap.bO.push(dmap.l);
+			 var aW = null;
+			 try{
+			 	dmap.setMarkers("Start",{lat:locations[0].lat(),lng:locations[0].lng()},1);
+			 	dmap.setMarkers("End",{lat:locations[locations.length-1].lat(),lng:locations[locations.length-1].lng()} ,1);
+			 }catch(ignore) {
+				 
+			 }
+			 var z=0;
+			 for (z=0; z< locations.length;z++) {
+				var pt = locations[z];
+				if (aW == null) { 
+					aW = pt;
+				} else { 
+					if (Point2PointDistance(aW, pt) > 1) { 
+						dmap.bO.push(pt);
+						aW = pt;
+					} 
+				} 
+			 }
+			 
+			 me.aI = 0;
+			 me.ae = 0;
+			 me.buildRouteLegs();
+			 
+		 	if (true) { 
+		 		me.updateMarker(dmap.l, dmap.routeLegs[0].bearing);
+		 	} 
+		 	
+		 	if (me.mode == 2 && pan) { 
+		 		var v = me.routeLegs[0];
+		 		pan.setPosition(me.l);
+		 		pan.setPov({ heading: v.bearing, pitch: 0, zoom: dmap.streeViewZoom });
+		 		if (pan.location!==undefined) {
+		 			pan.setVisible(Point2PointDistance(pan.location.latLng,dmap.l)<100);
+		 		} else {
+		 			pan.setVisible(true);
+		 		}
+		 		dmap.updateMarker(me.l, v.bearing);
+		 	} 
+		 	
+		 	dmap.ax = locations[0];
+		 	dmap.buildGuages();	
+			map.setCenter(dmap.l);
+			map.setZoom(12);
+			});
+
+ }
+ 
+ DMap.prototype.aw = function (cL, cv) { 
+	 
+	
+	 var me = this;
+	 this.currentDirections = cL;
+	 
+	 if (this.chart==null) {
+		 this.chart={};
+	 
+	 	getElevationForPath(cL.routes[0].overview_polyline,function(data) {
+			me.buildChart(data);
+		},cL.routes[0].legs[0].distance.value, me.journeyName);
+	}
+	 
+ 	var routes = cL.routes;
+ 	var ar = routes[0].legs;
+ 	dmap.l = ar[0].start_location;
+ 	dmap.bO = [];
+ 	dmap.bO.push(dmap.l);
+ 	var aW = null;
+ 	for (var r in routes) { 
+ 		var ci = routes[r];
+ 		var ar = ci.legs;
+ 		for (var i in ar) { 
+ 			if (ar.hasOwnProperty(i)) {
+	 			var aK = ar[i];
+	 			var cl = aK.steps;
+	 			for (var j in cl) { 
+	 				if (cl.hasOwnProperty(j)) {
+		 				var cu = cl[j];
+		 				var an = cu.path;
+		 				for (var k in an) { 
+		 					if (an.hasOwnProperty(k)) {
+			 					var pt = an[k];
+			 					if (aW == null) { 
+			 						aW = pt;
+			 					} else { 
+			 						if (Point2PointDistance(aW, pt) > 1) { 
+			 							dmap.bO.push(pt);
+			 							aW = pt;
+			 						} 
+			 					}
+		 					}
+		 				}
+	 				}
+	 			}
+ 			}
+ 		} 
+ 	} 
+ 	this.aI = 0;
+ 	this.ae = 0;
+ 	this.buildRouteLegs();
+ 	
+ 	if (cv) { 
+ 		this.updateMarker(dmap.l, dmap.routeLegs[0].bearing);
+ 	} 
+ 	if (this.mode == 2 && pan) { 
+ 		var v = this.routeLegs[0];
+ 		pan.setPosition(this.l);
+ 		pan.setPov({ heading: v.bearing, pitch: 0, zoom: dmap.streeViewZoom });
+ 		dmap.updateMarker(this.l, v.bearing);
+ 	} 
+ 	dmap.buildGuages();
+ };
+ 
+ function swapDirections() { 
+	 
+	var fromText = eid("fromText").value;
+	var toText = eid("toText").value;
+ 	eid("fromText").value = toText;
+ 	eid("toText").value = fromText;
+ 	
+ };
+ 
+ DMap.prototype.cK = function () { 
+	 this.waitPanel.innerHTML = "<table cellspacing=0 cellpadding=8 style='width:100%;height:100%;'><tr valign='top'><td style='width:100%'>" + "<div id='waitDiv'></div>" + "</td></tr></table>";
+ };
+ 
+ DMap.prototype.setWaitDiv = function (html) { 
+	 eid("waitDiv").innerHTML = html;
+ };
+ 
+ //DMap.prototype.dw = function () { 
+ DMap.prototype.initPanels = function () { 
+	this.calcWindowDimensions();
+ 	var ag = "";
+ 	
+ 	ag += "<div id='startPanel' 	 style='position:absolute;display:none'></div>";
+ 	ag += "<div id='headerPanel' 	 style='z-index:2;position:absolute;display:none'></div>";
+ 	ag += "<div id='directionsPanel' style='position:absolute;display:none;overflow:auto'></div>";
+ 	ag += "<div id='mapPanel' 		 style='position:absolute;display:none'></div>";
+ 	ag += "<div id='streetViewPanel' style='position:absolute;display:none'></div>";
+ 	ag += "<div id='metaPanel' 		 style='position:absolute;display:none'></div>";
+ 	ag += "<div id='waitPanel' 		 style='position:absolute;display:none'></div>";
+ 	ag += "<div id='stockContainer'  style='position:absolute;'></div>"; 
+ 	
+ 	eid("mainDiv").innerHTML = ag;
+ 	
+ 	this.startPanel 	 = eid("startPanel");
+ 	this.headerPanel 	 = eid("headerPanel");
+ 	this.mapPanel 		 = eid("mapPanel");
+ 	this.streetViewPanel = eid("streetViewPanel");
+ 	this.directionsPanel = eid("directionsPanel");
+ 	this.metaPanel 		 = eid("metaPanel");
+ 	this.waitPanel 		 = eid("waitPanel");
+ 	this.elePan 		 = eid("stockContainer");
+ 	this.resizeElements();
+ };
+ 
+ DMap.prototype.t = function (ab, cq, x, y, aO, aa) { 
+	 	if (ab) { 
+	 		ab.style.display = cq ? "block" : "none";
+ 			ab.style.left = x + "px";
+ 			ab.style.top = y + "px";
+ 			if (aO >= 0) { 
+ 				ab.style.width = aO + "px";
+ 			} 
+ 			if (aa >= 0) { 
+ 				ab.style.height = aa + "px";
+ 			} 
+ 		} 
+};
+
+DMap.prototype.tt = function (ab, cq, x, y, aO, aa) { 
+ 	if (ab) { 
+ 		ab.style.display = cq ? "block" : "none";
+			ab.style.left = x + "px";
+			ab.style.top = y + "px";
+			if (aO >= 0) { 
+				ab.style.width = aO + "%";
+			} 
+			if (aa >= 0) { 
+				ab.style.height = aa + "px";
+			} 
+		} 
+};
+/*
+DMap.prototype.resizeElementsOrig = function (a) { 
+	this.calcWindowDimensions();
+	var barHeight = 50;
+	var L = barHeight + 150;
+	
+ 	if (this.mode == 0) { 
+ 		var ht = this.height;
+ 		var ht1 = parseInt((this.height - L + 1) / 2);
+ 		var wd = this.width;
+		this.t(this.startPanel, true, 0, 0, wd, ht);
+ 		this.t(this.mapPanel, false, 0, ht1, wd, ht1);
+ 		this.t(this.headerPanel, false, 0, 0, wd, L);
+ 		this.t(this.streetViewPanel, false, 0, 0, wd, ht1);
+ 		this.t(this.directionsPanel, false, 0, 0, 0, wd, ht1);
+ 		this.t(this.waitPanel, false, 0, 0, wd, ht1);
+ 		this.t(this.elePan, false, 0, 0, 0, wd, ht1);
+ 		
+ 	} else if (this.mode == 3) { 
+ 		var ht = this.height;
+ 		var ht1 = parseInt((this.height - L + 1) / 2);
+ 		var wd = this.width;
+ 		this.t(this.waitPanel, true, 0, 0, wd, ht);
+ 		this.t(this.startPanel, false, 0, 0, wd, ht);
+ 		this.t(this.mapPanel, false, 0, ht1, wd, ht1);
+ 		this.t(this.headerPanel, false, 0, 0, wd, L);
+ 		this.t(this.streetViewPanel, false, 0, 0, wd, ht1);
+ 		this.t(this.directionsPanel, false, 0, 0, 0, wd, ht1);
+ 		this.t(this.elePan, false, 0, 0, 0, wd, ht1);
+ 		
+ 	} else { 
+ 		var ht = parseInt((this.height - barHeight) / 3);
+ 		//var ht = parseInt((this.height - L + 1) / 2);
+ 		var wd = this.width;
+ 		var y1 = L;
+ 		var y2 = L + ht;
+ 		var y3 = this.height - L;
+ 		this.t(this.startPanel, false, 0, 0, wd, ht);
+ 		//this.t(this.headerPanel, true, 0, 0, wd, L-150);
+ 		this.t(this.headerPanel, true, 0, 0, wd,barHeight);
+ 		
+ 		this.t(this.directionsPanel, this.mode == 1, 0, y1, wd, ht);
+ 		//this.t(this.streetViewPanel, this.mode == 2, 0, y1, wd, ht);
+ 	//	this.t(this.mapPanel, true, 0, y2, wd, ht);
+ 		this.t(this.waitPanel    , false, 0, 0,  wd, ht);
+	//	this.tt(this.elePan, true , 0, 30, 100, ht/2);
+	
+		this.tt(this.elePan, true , 0, barHeight , 100, ht);
+		this.t(this.streetViewPanel, this.mode == 2, 0, barHeight + ht, wd, ht);
+ 		this.t(this.mapPanel, true,                0, barHeight + (ht*2),  wd, ht);
+ 		
+ 	} 
+ 	
+ 	if (eid("directionsDiv") && (this.width > 0)) { 
+ 		eid("directionsDiv").style.width = (this.width - 30) + "px";
+ 	} 
+ 	if (map) { 
+ 		google.maps.event.trigger(map, "resize");
+ 	} 
+ 	if (pan) { 
+ 		google.maps.event.trigger(pan, "resize");
+ 	} 
+ 	//if (this.elevationData){
+ 		//if (this.chart){
+ 	
+ 			//this.chart.draw(google.visualization.arrayToDataTable(this.elevationData));
+ 		//}
+ 	//}
+ };
+ */
+ 
+ DMap.prototype.resizeElements = function (a) { 
+	this.calcWindowDimensions();
+	var barHeight = 50;
+	var L = barHeight + 150;
+	
+ 	if (this.mode == 0) { 
+ 		var ht = this.height;
+ 		var ht1 = parseInt((this.height - L + 1) / 2);
+ 		var wd = this.width;
+		this.t(this.startPanel, true, 0, 0, wd, ht);
+ 		this.t(this.mapPanel, false, 0, ht1, wd, ht1);
+ 		this.t(this.headerPanel, false, 0, 0, wd, L);
+ 		this.t(this.streetViewPanel, false, 0, 0, wd, ht1);
+ 		this.t(this.directionsPanel, false, 0, 0, 0, wd, ht1);
+ 		this.t(this.waitPanel, false, 0, 0, wd, ht1);
+ 		this.t(this.metaPanel, false, 0, 0, wd, ht1);
+ 		this.t(this.elePan, false, 0, 0, 0, wd, ht1);
+ 		
+ 	} else if (this.mode == 3) { 
+ 		var ht = this.height;
+ 		var ht1 = parseInt((this.height - L + 1) / 2);
+ 		var wd = this.width;
+ 		this.t(this.waitPanel, true, 0, 0, wd, ht);
+ 		this.t(this.startPanel, false, 0, 0, wd, ht);
+ 		this.t(this.mapPanel, false, 0, ht1, wd, ht1);
+ 		this.t(this.headerPanel, false, 0, 0, wd, L);
+ 		this.t(this.streetViewPanel, false, 0, 0, wd, ht1);
+ 		this.t(this.directionsPanel, false, 0, 0, 0, wd, ht1);
+ 		this.t(this.metaPanel, false, 0, 0, wd, ht1);
+ 		this.t(this.elePan, false, 0, 0, 0, wd, ht1);
+ 		
+ 	} else { 
+ 		var ht = parseInt((this.height - barHeight) / 3);
+ 		//var ht = parseInt((this.height - L + 1) / 2);
+ 		var wd = this.width;
+ 		var y1 = L;
+ 		var y2 = L + ht;
+ 		var y3 = this.height - L;
+ 		this.t(this.startPanel, false, 0, 0, wd, ht);
+ 		//this.t(this.headerPanel, true, 0, 0, wd, L-150);
+ 		this.t(this.headerPanel, true, 0, 0, wd,barHeight);
+ 		
+ 		this.t(this.directionsPanel, this.mode == 1, 0, y1, wd, ht);
+ 		//this.t(this.streetViewPanel, this.mode == 2, 0, y1, wd, ht);
+ 	//	this.t(this.mapPanel, true, 0, y2, wd, ht);
+ 		this.t(this.waitPanel    , false, 0, 0,  wd, ht);
+	//	this.tt(this.elePan, true , 0, 30, 100, ht/2);
+	
+		this.tt(this.elePan, true , 0, barHeight , 100, ht);
+		this.t(this.streetViewPanel, this.mode == 2, 0, barHeight + ht, wd, ht);
+ 		this.t(this.mapPanel, true,                0, barHeight + (ht*2),  wd/2, ht);
+ 		this.t(this.metaPanel, true,   wd/2, barHeight + (ht*2),  wd/2, ht);
+ 		
+ 	} 
+ 	
+ 	if (eid("directionsDiv") && (this.width > 0)) { 
+ 		eid("directionsDiv").style.width = (this.width - 30) + "px";
+ 	} 
+ 	if (map) { 
+ 		google.maps.event.trigger(map, "resize");
+ 	} 
+ 	if (pan) { 
+ 		google.maps.event.trigger(pan, "resize");
+ 	} 
+ 	//if (this.elevationData){
+ 		//if (this.chart){
+ 	
+ 			//this.chart.draw(google.visualization.arrayToDataTable(this.elevationData));
+ 		//}
+ 	//}
+ };
+ 
+ DMap.prototype.calcWindowDimensions = function () { 
+	 var isIE = true;
+ 	if (typeof (window.innerHeight) == "number") { 
+ 		isIE = false;
+ 	} 
+ 	if (isIE) { 
+ 		this.width = parseInt(document.body.offsetWidth);
+ 		this.height = parseInt(document.body.offsetHeight);
+ 	} else { 
+ 		this.width = parseInt(window.innerWidth);
+ 		this.height = parseInt(window.innerHeight);
+ 	} 
+ };
+ 
+ 
+ var mapTypes = [google.maps.MapTypeId.ROADMAP, google.maps.MapTypeId.SATELLITE, google.maps.MapTypeId.HYBRID, google.maps.MapTypeId.TERRAIN,"OpenStreetMap","OpenStreetMapOSM","OpenTopoMap", "OpenCycleMap","TopoClassical"];
+ 
+
+ DMap.prototype.setMarkers = function (title,location,zIndex) {
+	  // Adds markers to the map.
+
+	  // Marker sizes are expressed as a Size of X,Y where the origin of the image
+	  // (0,0) is located in the top left of the image.
+
+	  // Origins, anchor positions and coordinates of the marker increase in the X
+	  // direction to the right and in the Y direction down.
+	  var image = {
+	    url: 'images/beachflag.png',
+	    // This marker is 20 pixels wide by 32 pixels high.
+	    size: new google.maps.Size(20, 32),
+	    // The origin for this image is (0, 0).
+	    origin: new google.maps.Point(0, 0),
+	    // The anchor for this image is the base of the flagpole at (0, 32).
+	    anchor: new google.maps.Point(0, 32)
+	  };
+	  // Shapes define the clickable region of the icon. The type defines an HTML
+	  // <area> element 'poly' which traces out a polygon as a series of X,Y points.
+	  // The final coordinate closes the poly by connecting to the first coordinate.
+	  var shape = {
+	    coords: [1, 1, 1, 20, 18, 20, 18, 1],
+	    type: 'poly'
+	  };
+	
+
+	    var marker = new google.maps.Marker({
+	      position: {lat: location.lat, lng: location.lng},
+	      map: map,
+	      icon: image,
+	      shape: shape,
+	      title: title,
+	      zIndex: zIndex
+	    });
+	  
+	}
+ 
+ DMap.prototype.setupMap = function () { 
+	 
+	this.mapType = eid("mapTypeSelect").value;
+	var elevator = new google.maps.ElevationService;
+	 
+	var mapConfig = { zoom: 2, center: new google.maps.LatLng(0, 0), mapTypeId: mapTypes[this.mapType], navigationControlOptions: { style: google.maps.NavigationControlStyle.SMALL }, scaleControl: true };
+ 	map = new google.maps.Map(this.mapPanel, mapConfig);
+ 	
+ 	
+ 	//Define OSM map type pointing at the OpenStreetMap tile server
+ 	map.mapTypes.set("OpenStreetMap", new google.maps.ImageMapType({
+ 	     getTileUrl: function(coord, zoom) {
+ 	         // "Wrap" x (logitude) at 180th meridian properly
+ 	         // NB: Don't touch coord.x because coord param is by reference, and changing its x property breakes something in Google's lib 
+ 	         var tilesPerGlobe = 1 << zoom;
+ 	         var x = coord.x % tilesPerGlobe;
+ 	         if (x < 0) {
+ 	             x = tilesPerGlobe+x;
+ 	         }
+ 	         // Wrap y (latitude) in a like manner if you want to enable vertical infinite scroll
+ 	         return "http://tile.openstreetmap.org/" + zoom + "/" + x + "/" + coord.y + ".png";
+ 	     },
+ 	     tileSize: new google.maps.Size(256, 256),
+ 	     name: "OpenStreetMap",
+ 	     maxZoom: 18
+ 	 }));
+ 	
+ 	map.mapTypes.set("OpenStreetMapOSM", new google.maps.ImageMapType({
+	     getTileUrl: function(coord, zoom) {
+	         // "Wrap" x (logitude) at 180th meridian properly
+	         // NB: Don't touch coord.x because coord param is by reference, and changing its x property breakes something in Google's lib 
+	         var tilesPerGlobe = 1 << zoom;
+	         var x = coord.x % tilesPerGlobe;
+	         if (x < 0) {
+	             x = tilesPerGlobe+x;
+	         }
+	         // Wrap y (latitude) in a like manner if you want to enable vertical infinite scroll
+	         return "http://otile1.mqcdn.com/tiles/1.0.0/map/" + zoom + "/" + x + "/" + coord.y + ".png";
+	         
+	     },
+	     tileSize: new google.maps.Size(256, 256),
+	     name: "OpenStreetMapOSM",
+	     maxZoom: 19
+	 }));
+ 	
+ 	map.mapTypes.set("OpenTopoMap", new google.maps.ImageMapType({
+	     getTileUrl: function(coord, zoom) {
+	         // "Wrap" x (logitude) at 180th meridian properly
+	         // NB: Don't touch coord.x because coord param is by reference, and changing its x property breakes something in Google's lib 
+	         var tilesPerGlobe = 1 << zoom;
+	         var x = coord.x % tilesPerGlobe;
+	         if (x < 0) {
+	             x = tilesPerGlobe+x;
+	         }
+	         // Wrap y (latitude) in a like manner if you want to enable vertical infinite scroll
+
+	         return "http://opentopomap.org/" + zoom + "/" + x + "/" + coord.y + ".png";
+	     },
+	     tileSize: new google.maps.Size(256, 256),
+	     name: "OPENTOPOMAP",
+	     maxZoom: 15
+	 }));
+
+ 	//		,{ id:'OPENTOPOMAP', menu_order:16.1, menu_name:'Europe OpenTopoMap', description:'OpenTopoMap.org', credit:'Map data from <a target="_blank" href="http://www.opentopomap.org/">OpenTopoMap.org</a>', error_message:'OpenTopoMap tiles unavailable', min_zoom:1, max_zoom:15, bounds:[-32,34,47,72], bounds_subtract:[], url:'http://opentopomap.org/{Z}/{X}/{Y}.png' }
+
+ 	
+ 	//Define OSM map type pointing at the OpenStreetMap tile server
+ 	map.mapTypes.set("OpenCycleMap", new google.maps.ImageMapType({
+ 	     getTileUrl: function(coord, zoom) {
+ 	         // "Wrap" x (logitude) at 180th meridian properly
+ 	         // NB: Don't touch coord.x because coord param is by reference, and changing its x property breakes something in Google's lib 
+ 	         var tilesPerGlobe = 1 << zoom;
+ 	         var x = coord.x % tilesPerGlobe;
+ 	         if (x < 0) {
+ 	             x = tilesPerGlobe+x;
+ 	         }
+ 	         // Wrap y (latitude) in a like manner if you want to enable vertical infinite scroll
+
+ 	         return "http://tile.opencyclemap.org/cycle/" + zoom + "/" + x + "/" + coord.y + ".png";
+ 	     },
+ 	     tileSize: new google.maps.Size(256, 256),
+ 	     name: "OpenCycleMap",
+ 	     maxZoom: 18
+ 	 }));
+ 	
+ 	map.mapTypes.set("TopoClassical", new google.maps.ImageMapType({
+	     getTileUrl: function(coord, zoom) {
+	         // "Wrap" x (logitude) at 180th meridian properly
+	         // NB: Don't touch coord.x because coord param is by reference, and changing its x property breakes something in Google's lib 
+	         var tilesPerGlobe = 1 << zoom;
+	         var x = coord.x % tilesPerGlobe;
+	         if (x < 0) {
+	             x = tilesPerGlobe+x;
+	         }
+	         // Wrap y (latitude) in a like manner if you want to enable vertical infinite scroll
+
+	         return "http://eu.cycle.travel/topoclassical_eu/" + zoom + "/" + x + "/" + coord.y + ".png";
+	     },
+	     tileSize: new google.maps.Size(256, 256),
+	     name: "OpenCycleMap",
+	     maxZoom: 18
+	 }));
+ 	
+ 	
+ 	
+ 	
+ 	 var infowindow = new google.maps.InfoWindow({map: map});
+ 	google.maps.event.addListener(map, "click", function (event) { 
+ 		//dmap.aC(event.latLng, true);
+ 		//dmap.displayLocationElevation(event.latLng, elevator, infowindow);
+ 	});
+ 	//this.cR();
+ };
+ /*
+ DMap.prototype.cR = function () { 
+	var ad = '<ins class="adsbygoogle" style="display:inline-block;width:234px;height:60px" data-ad-client="ca-pub-5408854154696215" data-ad-slot="9214035150"></ins>';
+ 	var adNode = document.createElement('div');
+ 	adNode.innerHTML = ad;
+ 	map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(adNode);
+ 	google.maps.event.addListenerOnce(map, 'tilesloaded', function () { 
+ 		(adsbygoogle = window.adsbygoogle || []).push({});
+ 	});
+ };
+ */
+ var pandas = [];
+ DMap.prototype.showPegman = function (visible) { 
+	if (this.marker) { 
+		 this.marker.setVisible(visible);
+ 	} 
+ };
+ 
+ DMap.prototype.updateMarker = function (pt, df) { 
+	
+	if (!pandas.length) { 
+		//load the images
+		for (var i = 0;i < 16; i++) { 
+			 pandas[i] = new google.maps.MarkerImage("images/pegman.png", new google.maps.Size(49, 52), new google.maps.Point(0, i * 52), new google.maps.Point(25, 36));
+ 		} 
+	}
+	
+	if (!this.marker) { 
+		var cZ = new google.maps.MarkerImage("images/pegman.png", new google.maps.Size(49, 52), new google.maps.Point(0, 0), new google.maps.Point(25, 36));
+ 		//var ak = new google.maps.Marker({ position: pt, icon: cZ, map: map, draggable: true, zIndex: 10000 });
+ 		//google.maps.event.addListener(ak, "dragstart", function (a) { 
+ 		//	if (dmap.isRunning) { 
+ 		//		pauseAnimation();
+ 		//	} 
+ 		//});
+ 		//google.maps.event.addListener(ak, "drag", function (a) { 
+ 		//	dmap.aC(a.latLng, false);
+ 		//});
+ 		//google.maps.event.addListener(ak, "dragend", function (a) { 
+ 		//	dmap.aC(a.latLng, true);
+ 		//});
+ 		this.marker = new google.maps.Marker({ position: pt, icon: cZ, map: map, draggable: true, zIndex: 10000 });
+ 	} else { 
+ 		this.marker.setPosition(pt);
+ 	} 
+	this.marker.setVisible(this.mode == 2 ? true : false);
+ 	var n = Math.round(df / 22.5) % 16;
+ 	this.marker.setIcon(pandas[n]);
+ };
+ 
+ DMap.prototype.aC = function (pt, dR) { 
+	//find point in route closest to the given point and then set map and panoram to this location.
+	var bU = 0;
+ 	var bd = -1;
+ 	
+ 	for (var i in this.routeLegs) { 
+ 		var dg = this.routeLegs[i].latLng;
+ 		var distance = Point2PointDistance(pt, dg);
+ 		if (!bU || distance < bU) { 
+ 			bU = distance;
+ 			bd = i;
+ 		} 
+ 	} 
+ 	var J = this.routeLegs[bd];
+ 	var av = J.latLng;
+ 	if (J) { 
+ 		var av = this.dB(bd, pt);
+ 		this.l = av;
+ 		this.aI = bd;
+ 		this.ae = J.distance / 2;
+ 		this.updateMarker(av, J.bearing);
+		 if (dR && pan) { 
+			pan.setPosition(av);
+ 			pan.setPov({ heading: J.bearing, pitch: 0, zoom: this.streeViewZoom });
+ 		} 
+	} 
+ };
+ 
+ DMap.prototype.dB = function (bz, pt) { 
+	
+	var J = this.routeLegs[bz];
+ 	var pt1 = J.start;
+ 	var pt2 = J.end;
+ 	var dm = pt1 + " to " + pt2;
+ 	var distance = Point2PointDistance(pt1, pt2);
+ 	var dF = 0;
+ 	
+ 	while (distance > 1) { 
+ 		var mx = (pt1.lng() + pt2.lng()) / 2;
+ 		var my = (pt1.lat() + pt2.lat()) / 2;
+ 		var pt0 = new google.maps.LatLng(my, mx);
+ 		var cT = Point2PointDistance(pt1, pt);
+ 		var cC = Point2PointDistance(pt2, pt);
+ 		if (cT < cC) {
+ 			pt2 = pt0;
+ 		} else { 
+ 			pt1 = pt0;
+ 		} 
+ 		distance = Point2PointDistance(pt1, pt2);
+ 		dF++;
+ 	} 
+ 	
+ 	var bZ = Point2PointDistance(J.start, J.end);
+ 	var aJ = Point2PointDistance(J.start, pt1);
+ 	var ds = aJ * 100 / bZ;
+ 	this.aI = bz;
+ 	this.dP = J;
+ 	this.ae = aJ;
+ 	return pt1;
+ };
+ /*
+ DMap.prototype.bp = function () { 
+	 this.headerPanel.innerHTML = "<table cellspacing=0 cellpadding=2 style='width:100%;height:100%;background-color:gainsboro' ><tr><td style='width:130px'>" 
+	 + "<input id='playButton'  type='button' onclick='playAnimation()' value='Play' style='width:60px'  /> " 
+	 + "<input id='resetButton' type='button' onclick='resetDirections()' value='Reset'  style='width:60px' />" 
+	 + "</td><td align='right'><div id='distDisplay'></div></td><td align='right'><div style='width: 60px;height: 25px' id='speedDisplay'></div></td></tr></table>";
+
+	// this.by.innerHTML = "<table cellspacing=0 cellpadding=2 style='width:100%;height:100%;background-color:gainsboro' ><tr><td style='width:130px'>" + "<input id='playButton' type='button' onclick='playAnimation()' value='Play' style='width:60px'  /> " + "<input id='resetButton' type='button' onclick='resetDirections()' value='Reset'  style='width:60px' />" + "</td><td align='right'>" + "<a id='dirlink' class='mb0' href='javascript:setMode(1)' title='Display Directions' />Directions</a> " + "<a id='svlink' class='mb0' href='javascript:setMode(2)' title='Display Street View' />Street View</a>" + "</td></tr></table>";
+ };
+ */
+ function loadDD() {
+	 dmap.loadGPX("Devon Dirt 2015 v2.gpx");
+ }
+
+ 
+ DMap.prototype.bp = function () { 
+	 this.headerPanel.innerHTML = "<nav class=\"navbar navbar-inverse\"><div class=\"container\"><div class=\"navbar-header\"><button type=\"button\" class=\"navbar-toggle collapsed\" data-toggle=\"collapse\" data-target=\".navbar-collapse\">"
+		 + "<span class=\"sr-only\">Toggle navigation</span><span class=\"icon-bar\"></span><span class=\"icon-bar\"></span><span class=\"icon-bar\"></span></button><a class=\"navbar-brand\" href=\"services/api/journeys/current/gpx\">"
+	     + "<img alt=\"PiCycle\" height=34 width=84 src=\"images/picycle2.png\"></a></div>"
+		 + "<div class=\"navbar-collapse collapse\"><ul class=\"nav navbar-nav\">"
+		 + "<li class=\"active\"><button type=\"button\" id='playButton' onclick='playAnimation()' class=\"btn btn-primary navbar-btn\">Start</button></li>"
+		 + "<li class=\"active\"><button type=\"button\" id='resetButton' onclick='resetDirections()' class=\"btn btn-danger navbar-btn\">Reset</button></li>"
+		 + "<li class=\"active\"><button type=\"button\" id='loadDDButton' onclick='loadDD()' class=\"btn btn-warning navbar-btn\">Load Devon Dirt</button></li>"
+		 + "<li class=\"dropdown\"><a href=\"#\" class=\"dropdown-toggle\" data-toggle=\"dropdown\" role=\"button\" aria-haspopup=\"true\" aria-expanded=\"false\"><span class=\"glyphicon glyphicon-globe\" aria-hidden=\"true\"></span> Map Type<span class=\"caret\"></span></a>"
+         + "<ul class=\"dropdown-menu\">"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('roadmap');\">Road</a></li>"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('satellite');\">Satellite</a></li>"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('hybrid');\">Hybrid</a></li>"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('terrain');\">Terrain</a></li>"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('OpenStreetMap');\">Open Street Map</a></li>"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('OpenStreetMapOSM');\">Open Street Map MQ</a></li>"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('OpenTopoMap');\">Open Topo Map</a></li>"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('OpenCycleMap');\">Open Cycle Map</a></li>"
+         + "<li><a href=\"#\" onClick=\"map.setMapTypeId('TopoClassical');\">Cycle Map</a></li>"
+         + "</ul></li>"
+         
+	//	 + "<li class=\"active\"><span class=\"label label-default\" id='distDisplay'></span></li>"
+		// + "<li class=\"active\"><span class=\"label label-default\" id='speedDisplay'></span></li>"
+		// + "<li class=\"active\"><span class=\"label label-default\" id='cadenceDisplay'></span></li>"
+	//	 + "<li class=\"active\"><span class=\"label label-default\" id='timeDisplay'></span></li>"
+	//	 + "<li class=\"active\"><span class=\"label label-default\" id='aveSpeedDisplay'></span></li>"
+	//	 + "<li class=\"active\"><span class=\"label label-default\" id='maxSpeedDisplay'></span></li>"
+	//	 + "<li class=\"active\"><span class=\"label label-default\" id='powerDisplay'></span></li>"
+		 + "</div><!--/.nav-collapse --></div></nav>";
+
+		 this.metaPanel.innerHTML = "<div id=\"gauge-container\" ><div id=\"container-speed\" style=\"width: 25%; height: 40%; float: left\"></div>"
+		 + "<div id=\"container-rpm\" style=\"width: 25%; height: 40%; float: left\"></div>"
+		 + "<div id=\"container-power\" style=\"width: 25%; height: 40%; float: left\"></div>"
+		 + "<div id=\"container-load\" style=\"width: 25%; height: 40%; float: left\"></div></div>"
+		 + "<div class=\"container-fluid\"><div class=\"row\"><h5>"
+		 + "<span class=\"label label-default\" id='distDisplay'></span>"
+		 + "<span class=\"label label-default\" id='speedDisplay'></span>"
+		 + "</div><br><div class=\"row\">"
+		 + "<span class=\"label label-default\" id='cadenceDisplay'></span>"
+		 + "<span class=\"label label-default\" id='timeDisplay'></span>"
+		 + "</div><br><div class=\"row\">"
+		 + "<span class=\"label label-default\" id='aveSpeedDisplay'></span>"
+		 + "<span class=\"label label-default\" id='maxSpeedDisplay'></span>"
+		 + "</div><br><div class=\"row\">"
+		 + "<span class=\"label label-default\" id='powerDisplay'></span></div></div></h5>";
+		 
+	// this.by.innerHTML = "<table cellspacing=0 cellpadding=2 style='width:100%;height:100%;background-color:gainsboro' ><tr><td style='width:130px'>" + "<input id='playButton' type='button' onclick='playAnimation()' value='Play' style='width:60px'  /> " + "<input id='resetButton' type='button' onclick='resetDirections()' value='Reset'  style='width:60px' />" + "</td><td align='right'>" + "<a id='dirlink' class='mb0' href='javascript:setMode(1)' title='Display Directions' />Directions</a> " + "<a id='svlink' class='mb0' href='javascript:setMode(2)' title='Display Street View' />Street View</a>" + "</td></tr></table>";
+ };
+ 
+ DMap.prototype.initInputForm = function () { 
+	// this.aG.innerHTML = "<table cellspacing=0 cellpadding=2 style='background-color:gainsboro;text-align:center;width:100%;font-size:14px' ><tr><td style='width:100%'>" + "<div style='font-size:18px;padding:2px;font-weight:bold'>Directions Map</div>(with Animated Street View)" + "</td></tr></table>" + "<table cellspacing=0 cellpadding=4 style='width:100%;font-size:12px' ><tr><td style='width:50px;color:gray'>" + "From" + "</td><td>" + "<input id='fromText' type='text' style='width:100%' />" + "</td></tr><tr><td style='color:gray'>" + "To" + "</td><td>" + "<input id='toText' type='text' style='width:100%' />" + "</td></tr><tr><td style='color:gray'>" + "Via" + "</td><td>" + "<input id='viaText' type='text' style='width:100%' />" + "</td></tr><tr><td style='color:gray'>" + "Mode" + "</td><td>" + "<select id='travelModeSelect' style='width:150px'>" + "<option value='0'>Driving</option>" + "<option value='1'>Walking</option>" + "<option value='2'>Bicycle</option>" + "</select> &nbsp;&nbsp;&nbsp;" + "<a href='javascript:swapDirections()' title='Reverse To and From addresses'>reverse</a>" + "</td></tr><tr><td style='color:gray'>" + "Options" + "</td><td>" + "<input id='avoidHighwaysBox' type='checkbox' /> Avoid Highways &nbsp;" + "<input id='avoidTollsBox' type='checkbox' /> Avoid Toll Roads" + "</td></tr><tr><td colspan='2'>" + "<input type='button' value='Get Directions' style='width:100%;font-size:24px;color:green' onclick='parseDirForm()'>" + "</td></tr></table>" + "<table cellspacing=0 cellpadding=4 style='width:100%;font-size:11px;color:gray'><tr><td colspan=2>" + "<b>Animation Options</b>" + "</td></tr><tr><td style='width:100px'>" + "Step Distance</td><td><input id='stepText' type='text' style='width:80px' /> metres" + "</td></tr><tr><td>" + "Refresh Interval</td><td><input id='intervalText' type='text' style='width:80px' /> ms" + "</td></tr><tr><td>" + "Zoom (1 - 20)</td><td><input id='zoomText' type='text' style='width:80px' />" + "</td></tr></table>" + "<p>" + "<a target='_blank' href='http://www.tripgeo.com/DirectionsMap.aspx' title='TripGeo - Create Your Directions Map' style='color:green'>TripGeo - Create Your Directions Map</a>" + "</p>" + "";
+	 this.startPanel.innerHTML = "<nav class=\"navbar navbar-inverse\"><div class=\"container\"><div class=\"navbar-header\"><button type=\"button\" class=\"navbar-toggle collapsed\" data-toggle=\"collapse\" data-target=\".navbar-collapse\">"
+	 + "<span class=\"sr-only\">Toggle navigation</span><span class=\"icon-bar\"></span><span class=\"icon-bar\"></span><span class=\"icon-bar\"></span></button><a class=\"navbar-brand\" href=\"#\">"
+     + "<img alt=\"PiCycle\" height=34 width=84 src=\"images/picycle2.png\"></a></div>"
+	 + "<div class=\"navbar-collapse collapse\"><ul class=\"nav navbar-nav\"></div><!--/.nav-collapse --></div></nav>"
+	
+	 
+	// + "<div class='panel panel-success'><div class='panel-heading'><h1 class='panel-title'>Route</h1></div><div class='panel-body'>"
+	 + "<div class='panel-heading'><h1 class='panel-title'>Cycle Route</h1></div><div class='panel-body'>"
+	 // + "<div class=\"table-responsive\"><table cellspacing=0 cellpadding=4 class='table table-striped' >" 
+	 
+	 + "<div class=\"container\"><form class=\"form-horizontal\" role=\"form\">"
+	 + "<div class=\"form-group\"><div class=\"input-group input-group-sm\"><span class=\"input-group-addon\" id=\"basic-addon1\">From</span><input onFocus=\"geolocate()\" id='fromText' type='text' class='form-control' placeholder='Eg. London, EX238RA ...' aria-describedby='basic-addon1'></div></div>"
+	 + "<div class=\"form-group\"><div class=\"input-group input-group-sm\"><span class=\"input-group-addon\" id=\"basic-addon2\">To</span>  <input id='toText'   type='text' class='form-control' placeholder='Eg. Bristol, PL272AA ...' aria-describedby='basic-addon2'></div></div>" 
+	 + "<div class=\"form-group\"><button type=\"button\" onClick='javascript:swapDirections()' class=\"btn btn-info btn btn-default btn-xs\"><span class=\"glyphicon glyphicon-refresh\" aria-hidden=\"true\"></span> Reverse Addresses</button></div>" 
+	 + "<div class=\"form-group\"><div class=\"input-group input-group-sm\"><span class=\"input-group-addon\" id=\"basic-addon3\">Via</span><input id='viaText' type='text' class='form-control' placeholder='Eg. Plymouth ...' aria-describedby='basic-addon3'></div></div>"
+	 + "<div class=\"form-group\"><div class=\"input-group input-group-sm\"><span class=\"input-group-addon\" id=\"basic-addon4\">Region</span><input id='regionText' type='text' class='form-control' placeholder='Eg. UK, USA' aria-describedby='basic-addon4'></div></div>"
+	 + "<div class=\"form-group\"><div class=\"input-group input-group-sm\"><span class=\"input-group-addon\" id=\"basic-addon4\">Map Type</span>"
+		
+	 +"<select class=\"form-control\" id='mapTypeSelect'>" 
+		 + "<option value='0' selected>Road</option>" 
+		 + "<option value='1'>Satellite</option>" 
+		 + "<option value='2'>Hybrid</option>" 
+		 + "<option value='3'>Terrain</option>" 
+		 + "<option value='4'>Open Street Map</option>"
+		 + "<option value='5'>Open Street Map MQ</option>"
+		 + "<option value='6'>Open Topo Map</option>"
+		 + "<option value='7'>Open Cycle Map</option>"
+		 + "</select></div></div>"
+	
+   + "<div class=\"form-group\"><div class=\"input-group input-group-sm\"><span class=\"input-group-addon\" id=\"basic-addon4\">Travel Mode</span>"
+		 + "<select class=\"form-control\" id='travelModeSelect' >" 
+		 + "<option value='0'>Driving</option>" 
+		 + "<option value='1'>Walking</option>" + "<option value='2'>Bicycle</option>" 
+		 + "</select></div></div>"
+
+	 + "<div class=\"form-group\"><div class=\"input-group input-group-sm\">"
+	 + "<span class=\"input-group-addon\"><input id='avoidHighwaysBox' type=\"checkbox\" aria-label=\"Avoid Highways\"> Avoid Highways</span>"
+	 + "<span class=\"input-group-addon\"><input id='avoidTollsBox' type=\"checkbox\" aria-label=\"Avoid Toll Roads\"> Avoid Toll Roads</span>"  
+	 + "<span class=\"input-group-addon\"><input id='draggableRouteBox' type=\"checkbox\" aria-label=\"Draggable Route\"> Draggable Route</span> </div></div>"
+	 
+	 + "<input id='stepText' type='hidden'><input id='intervalText' type='hidden'>"
+	 
+	 + "<div class=\"form-group\"><div class=\"input-group\"><span class=\"input-group-addon\" id=\"basic-addon7\">Zoom (1 - 20)</span><input id='zoomText' type='text' class='form-control' placeholder='Time in seconds' aria-describedby='basic-addon7'></div></div>"
+	 
+	 + "<div class=\"form-group\"><button type='button' value='Get Directions' class='btn btn-lg btn-success navbar-btn' onclick='parseDirForm()'></span><span class=\"glyphicon glyphicon-globe\" aria-hidden=\"true\"></span> Get Directions</button>"
+	 + "&nbsp;<button type='button' value='Save Route' class='btn btn-lg btn-primary navbar-btn' onclick=\"dmap.saveRoute();\"><span class=\"glyphicon glyphicon-save\" aria-hidden=\"true\"></span> Save Route</button></div>"
+	// + "</div></form></div></div>" ;
+	 + "" 
+	 + "<h4><i class=\"icon-dropbox icon-1\"></i>Dropbox Files</h4>"
+	 + "<table id=\"grid-data\" class=\"table table-condensed table-hover table-striped\" data-toggle=\"bootgrid\" data-ajax=\"true\" data-url=\"services/api/list/files/dropbox/gpx1\">"
+	 + "<thead> <tr> "
+	 //+ "<th data-column-id=\"id\" data-type=\"numeric\" data-identifier=\"true\">ID</th>"
+	 + 				"<th data-column-id=\"name\">Filename</th>"
+	 +				"<th data-column-id=\"serverModified\" data-formatter=\"modified\" data-type=\"numeric\" data-header-css-class=\"bgColumnModified\">Modified</th>"
+	 + 				"<th data-column-id=\"size\" data-type=\"numeric\" data-formatter=\"filesize\" data-header-css-class=\"bgColumnSize\">Size</th>"
+	 + 				"<th data-column-id=\"commands\" data-formatter=\"commands\" data-sortable=\"false\" data-header-css-class=\"bgColumnCommands\"></th>"
+	 + 				"</tr></thead></table></div></form></div>";
+	 
+	 var grid = $("#grid-data").bootgrid({
+	//	ajax: true,
+		caseSensitive:true,
+		selection: true,
+	    multiSelect: false,
+	    rowSelect:true,
+	    formatters: {
+	        "commands": function(column, row) {
+	            return "<button type=\"button\" class=\"btn btn-xs btn-default command-edit\" data-row-id=\"" + row.name + "\"><span class=\"glyphicon glyphicon-cloud-download\"></span></button> " + 
+	                "<button type=\"button\" class=\"btn btn-xs btn-default command-delete\" data-row-id=\"" + row.id + "\"><span class=\"glyphicon glyphicon-trash\"></span></button>";
+	        },
+
+            "link": function(column, row) {
+                return "<a href=\"#\">" + column.id + ": " + row.id + "</a>";
+            },
+	        
+	        "modified": function (column,row) {
+	        	return dateFormat(new Date(row.serverModified), "d/mm/yy, H:MM:ss");
+	        },
+	        
+            "filesize": function (column,row) {
+	        	return filesize(row.size);
+	        }
+	    }
+			 
+	});
+	 
+	grid.on("selected.rs.jquery.bootgrid", function(e, rows)
+			{
+	    var rowIds = [];
+	    for (var i = 0; i < rows.length; i++) {
+	        rowIds.push(rows[i].id);
+	    }
+	    alert("Select: " + rowIds.join(","));
+	})
+	
+	grid.on("deselected.rs.jquery.bootgrid", function(e, rows)
+	{
+	    var rowIds = [];
+	    for (var i = 0; i < rows.length; i++) {
+	        rowIds.push(rows[i].id);
+	    }
+	    alert("Deselect: " + rowIds.join(","));
+	})
+	
+	grid.on("loaded.rs.jquery.bootgrid", function()
+			{
+	    /* Executes after data is loaded and rendered */
+	    grid.find(".command-edit").on("click", function(e) {
+	        dmap.loadGPX($(this).data("row-id"),true);
+	    }).end().find(".command-delete").on("click", function(e)
+	    {
+	        alert("You pressed delete on row: " + $(this).data("row-id"));
+	    });
+	});
+			
+	function getServerData() {
+	 console.log("getServerData");
+	 $("#grid-data").bootgrid({ caseSensitive:false});
+	}
+			
+	function clearGrid() {
+		console.log("clearGrid");
+		$("#grid-data").bootgrid().clear();
+	}
+
+	eid("fromText").value 	= this.startLoc;
+ 	eid("toText").value 	= this.endLoc;
+ 	eid("viaText").value 	= this.viaLoc;
+ 	eid("regionText").value = this.region;
+ 	eid("travelModeSelect").value = this.travelMode.toString();
+ 	eid("mapTypeSelect").value = this.mapType.toString();
+ 	
+ 	if (this.avoidHighways) {
+ 		eid("avoidHighwaysBox").checked = true;
+ 	} 
+
+ 	if (this.avoidTolls) {
+ 		eid("avoidTollsBox").checked = true;
+ 	} 
+ 	
+ 	if (this.draggableRoute) {
+ 		eid("draggableRouteBox").checked = true;
+ 	}
+ 	
+ 	//eid("stepText").value 	= this.bq;
+ 	eid("intervalText").value = this.animationDelay;
+ 	eid("zoomText").value 	= this.mapZoom;
+ 	initAutocomplete();
+ };
+ 
+ DMap.prototype.saveRoute = function () {
+	 
+	if  (eid("fromText").value=="" || eid("toText").value==""){
+		alert("Please complete the route first");
+	}
+	
+	 var response = prompt("Name for route?", eid("fromText").value + " to " + eid("toText").value);
+	 
+ };
+ 
+ DMap.prototype.setupStreetview = function () { 
+	 
+ 
+	//var ca = { addressControl: false, linksControl: false, navigationControl: true };
+ 	pan = new google.maps.StreetViewPanorama(this.streetViewPanel, { addressControl: false, linksControl: false, navigationControl: true });
+ 	pan.setPosition(this.l);
+ 	pan.setPov({ heading: 135, pitch: 0, zoom: this.streeViewZoom });
+ 	google.maps.event.addListener(pan, "pov_changed", function (a) { 
+ 		if (!dmap.isRunning) { 
+ 			var cO = pan.getPov();
+ 			var az = cO.heading;
+ 			while (az < 0) { 
+ 				az += 360;
+ 			} 
+ 			while (az > 360) { 
+ 				az -= 360;
+ 			} 
+ 			dmap.updateMarker(dmap.l, az);
+ 		} 
+ 	});
+ };
+ 
+ function eid(id) { 
+	 return document.getElementById(id);
+ };
+ 
+ function formatFloat(n, d) { 
+	 	var m = Math.pow(10, d);
+ 		return parseInt(n * m, 10) / m;
+ };
+ 
+function glog(a) { 
+	 if (typeof (console) != "undefined" && console && console.log) { 
+		 console.log(a);
+ 	} 
+};
+
+function initRandom() { 
+	var seed = new Date().getTime();
+ 	var x = Math.random(seed);
+ };
+ 
+ function getRandomInt(bV) { 
+	 var aN = Math.floor(Math.random() * bV);
+ 	return aN;
+ };
+ 
+ function getRandomFloat(bV) { 
+	 var aN = Math.random() * bV;
+ 	return aN;
+ };
+ 
+ function initGeoUtils() { 
+	 if (typeof (String.prototype.toRad) === "undefined") { 
+		 Number.prototype.toRad = function () { 
+			 return this * Math.PI / 180;
+ 		} 
+	} 
+	if (typeof (String.prototype.toDeg) === "undefined") { 
+		Number.prototype.toDeg = function () { 
+			return this * 180 / Math.PI;
+ 		} 
+	} 
+};
+
+ function Point2PointDistance(pt1, pt2) { 
+	var lat1 = pt1.lat();
+ 	var lat2 = pt2.lat();
+ 	var lon1 = pt1.lng();
+ 	var lon2 = pt2.lng();
+	var R = 6371000;
+ 	var dLat = (lat2 - lat1).toRad();
+ 	var dLon = (lon2 - lon1).toRad();
+ 	var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1.toRad()) * Math.cos(lat2.toRad()) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+ 	var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+ 	var d = R * c;
+ 	return d;
+ };
+ 
+ function Point2PointBearing(pt1, pt2) { 
+	 var angle = 0;
+ 	if (pt1 != null && pt2 != null && !pt1.equals(pt2)) { 
+ 		var y1 = pt1.lat().toRad();
+ 		var x1 = pt1.lng().toRad();
+ 		var y2 = pt2.lat().toRad();
+ 		var x2 = pt2.lng().toRad();
+ 		var a = Math.sin(x1 - x2) * Math.cos(y2);
+ 		var b = Math.cos(y1) * Math.sin(y2) - Math.sin(y1) * Math.cos(y2) * Math.cos(x1 - x2);
+ 		angle = -(Math.atan2(a, b));
+ 		if (angle < 0.0) { 
+ 			angle += Math.PI * 2.0;
+ 		} 
+ 		angle = parseInt(angle * 180.0 / Math.PI);
+ 	} 
+ 	return angle;
+ };
+
+//window.onunload=unloadPage;
+window.onresize=resizePage;
+
+</script>
+
+</head>
+<body onload="loadPage()">
+	<div id="mainDiv"></div>
+</body>
+</html>
